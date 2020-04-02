@@ -42,7 +42,7 @@ from gtts import gTTS
 def convert_text_to_voice(text):
     tts = gTTS(text, lang='ru')
     temp = text[:40]
-    path = "/home/mcs/PycharmProjects/first_bot/Farbot/voice files/" + temp + ".mp3"
+    path = "voice_files/" + temp + ".mp3"
     tts.save(path)
     print("create mp3: " + temp)
     return path

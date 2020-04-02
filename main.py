@@ -28,7 +28,7 @@ bot = commands.Bot(command_prefix='.') #инициализируем бота с
 
 global voice_client
 
-file_list = dir_helper.file_list("/home/mcs/Загрузки/dm/")
+file_list = dir_helper.file_list("voice_files/")
 
 @bot.command(pass_context=True, help="- показывает как давно вы на сервере")
 async def when_i_joined(ctx):
@@ -153,14 +153,14 @@ async def join(ctx):
     voice_client = await channel.connect()
 
 
-@bot.command(name="p", pass_context=True, help="воспроизводит один из файлов: " + ", ".join(file_list))
-async def play_local(ctx, file_name):
-
-    file_path = "/home/mcs/Загрузки/dm/" + file_name + ".mp3"
-    # channel = ctx.message.author.voice.channel
-    # voice = await channel.connect()
-    voice_clients = bot.voice_clients
-    voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
+# @bot.command(name="p", pass_context=True, help="воспроизводит один из файлов: " + ", ".join(file_list))
+# async def play_local(ctx, file_name):
+#
+#     file_path = "/home/mcs/Загрузки/dm/" + file_name + ".mp3"
+#     # channel = ctx.message.author.voice.channel
+#     # voice = await channel.connect()
+#     voice_clients = bot.voice_clients
+#     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
 
 
 @bot.command(name="say", pass_context=True, help="<текст> - произносит в воисе")
@@ -192,7 +192,7 @@ async def say(ctx, *args):
     if text[:40] not in file_list:
         file_path = google_voice.convert_text_to_voice(text)
     else:
-        file_path = "/home/mcs/PycharmProjects/first_bot/Farbot/voice files/" + text[:40] + ".mp3"
+        file_path = "voice_files/" + text[:40] + ".mp3"
     voice_clients = bot.voice_clients
     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
 
