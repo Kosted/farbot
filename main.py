@@ -2,9 +2,9 @@ import os
 from operator import itemgetter
 
 
-import Farbot.dir_helper as dir_helper
-import Farbot.google_voice as google_voice
-import Farbot.text_converter as text_converter
+import dir_helper as dir_helper
+import google_voice as google_voice
+import text_converter as text_converter
 
 
 import discord
