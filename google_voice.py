@@ -37,7 +37,6 @@
 # tts.runAndWait()
 
 from gtts import gTTS
-import Farbot.dir_helper as dir_helper
 
 
 def convert_text_to_voice(text):
