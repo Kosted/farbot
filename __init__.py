@@ -1,1 +1,1 @@
-__all__ = ["main", "dir_helper.py"]
+__all__ = ["main", "dir_helper.py", "text_converter"]
