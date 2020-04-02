@@ -19,7 +19,7 @@ from websockets import typing
 logger = logging.getLogger('discord')
 logging.basicConfig(level=logging.INFO)
 
-TOKEN = "NjkyMDc3NjQ1MTY0NDQ1NzY3.XnpUDg.otWYB7fmONY7vr9i3bmle0FuUZg"
+TOKEN = "NjkyMDc3NjQ1MTY0NDQ1NzY3.XoVA6A.bbISsep_-UPSOsXoLg-M-Vl-4EU"
 GUILD_ID = 539879904506806282
 guild = ""
 
