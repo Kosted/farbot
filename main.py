@@ -2,9 +2,9 @@ import os
 from operator import itemgetter
 
 
-import dir_helper as dir_helper
-import google_voice as google_voice
-import text_converter as text_converter
+import dir_helper
+import google_voice
+import text_converter
 
 
 import discord
