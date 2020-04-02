@@ -208,12 +208,12 @@ async def say(ctx, *args):
 
     text = " ".join(args)
     if text_converter.spam(text):
-        await ctx.send(author + " не спамь. Если бот ошибся и это не было спамом сообщи мне, попытаюсь исправить")
+        await ctx.send(author_name + " не спамь. Если бот ошибся и это не было спамом сообщи мне, попытаюсь исправить")
         return
 
     # text = text[:200]
 
-    text = text_converter.remove_non_alphanumeric(author) + " говорит: " + text[:200]
+    text = text_converter.remove_non_alphanumeric(author_name) + " говорит: " + text[:200]
 
     if text[:40] not in file_list:
         file_path = google_voice.convert_text_to_voice(text)
