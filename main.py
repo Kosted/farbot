@@ -150,7 +150,33 @@ async def on_ready():
 async def join(ctx):
     author = ctx.message.author
     channel = author.voice.channel
-    voice_client = await channel.connect()
+    await channel.connect()
+
+
+@bot.command(pass_context=True)
+async def leave(ctx):
+    author = ctx.message.author
+    voice = author.voice
+
+    if author.nick is not None:
+        author_name = author.nick
+    else:
+        author_name = author.name
+
+    if voice is not None:
+        author_voice = voice.channel
+    else:
+        await ctx.send(author_name + ", вы не подключены не к одному голосовому каналу")
+        return
+    if len(bot.voice_clients) == 0:
+        await ctx.send("Бот не подключен к чату")
+        return
+    else:
+        if bot.voice_clients[0].channel.id != author_voice.id:
+            await ctx.send(author_name + ", вы с ботом находитесь в разных чатах")
+            return
+        await bot.voice_clients[0].disconnect()
+
 
 
 # @bot.command(name="p", pass_context=True, help="воспроизводит один из файлов: " + ", ".join(file_list))
@@ -169,20 +195,20 @@ async def say(ctx, *args):
     author = ctx.message.author
     voice = author.voice
     if author.nick is not None:
-        author = author.nick
+        author_name = author.nick
     else:
-        author = author.name
+        author_name = author.name
     if voice is not None:
         voice = voice.channel
         if len(bot.voice_clients) == 0:
             await voice.connect()
     else:
-        await ctx.send(author + ", вы не подключены не к одному голосовому каналу")
+        await ctx.send(author_name + ", вы не подключены не к одному голосовому каналу")
         return
 
     text = " ".join(args)
     if text_converter.spam(text):
-        await ctx.send(author + " не спамь")
+        await ctx.send(author + " не спамь. Если бот ошибся и это не было спамом сообщи мне, попытаюсь исправить")
         return
 
     # text = text[:200]
