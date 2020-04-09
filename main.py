@@ -279,6 +279,16 @@ print(res)
         await ctx.send(res)
 
 
+
+
+@bot.command(name="move", pass_context=True, help="<название воиса> - перенос в воис")
+async def move(ctx, voice_name: str):
+    for channel in fargus_team.channels:
+        if channel.name == voice_name:
+            await ctx.author.edit(voice_channel=channel)
+            break
+
+
 @bot.command(name="say", pass_context=True, help="<текст> - произносит в воисе")
 async def say(ctx, *args):
 
