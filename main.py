@@ -21,7 +21,9 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = "NjkyMDc3NjQ1MTY0NDQ1NzY3.XoVA6A.bbISsep_-UPSOsXoLg-M-Vl-4EU"
 GUILD_ID = 539879904506806282
-guild = ""
+fargus_team = ""
+FARGUS = ""
+
 
 bot = commands.Bot(command_prefix='.') #инициализируем бота с префиксом '.'
 # client = discord.Client()
@@ -94,7 +96,7 @@ async def roll(ctx, *args):
 @bot.command(name="old", pass_context=True, help="<число> - Топ долгожителей этого сервера")
 async def old(ctx, top: int, *args):
     all_members_with_days = list()
-    for member in guild.members:
+    for member in fargus_team.members:
         all_members_with_days.append([member, datetime.datetime.today() - member.joined_at])
 
     all_members_with_days.sort(key=itemgetter(1), reverse=True)
@@ -134,15 +136,30 @@ async def ping(ctx, member: discord.Member):
 
 @bot.event
 async def on_ready():
-    global guild
-    guild = bot.get_guild(GUILD_ID)
+    welcome_message = "я готов к использованию, если видишь меня онлайн на сервере.\nЧтобы узнать, что я могу введи .help"
+    global fargus_team
+    global FARGUS
+    fargus_team = bot.get_guild(GUILD_ID)
+    FARGUS = fargus_team.owner
 
-    for channel in guild.channels:
+
+    for channel in fargus_team.channels:
         # if channel.name == "флудильня":
         if channel.name == "test_farbot":
             flud_chanel = channel
             break
-    await flud_chanel.send("я готов к использованию, если видишь меня онлайн на сервере.\nЧтобы узнать, что я могу введи .help")
+    async for message in channel.history(limit=1):
+        if message.author.id != bot.user.id:
+            await flud_chanel.send(welcome_message)
+            print("yes")
+        else:
+            if message.content != welcome_message:
+                await flud_chanel.send(welcome_message)
+            else:
+                await message.delete()
+                await flud_chanel.send(welcome_message)
+
+
     print('Ready! ' + "="*50)
 
 
@@ -187,6 +204,79 @@ async def leave(ctx):
 #     # voice = await channel.connect()
 #     voice_clients = bot.voice_clients
 #     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
+
+
+@bot.command(name="clear", pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
+async def clear(ctx, count_on_delete_message: int):
+    # global FARGUS
+    if ctx.author == FARGUS:
+        count = 0
+        async for message in ctx.channel.history(limit=count_on_delete_message):
+            await message.delete()
+            count += 1
+        await ctx.send("Я удалил " + str(count) + " сообщений", delete_after=5)
+    else:
+        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ")
+
+
+@bot.command(name="count", pass_context=True, help="Выводит колличество сообщений в этом чате для каждого пользователя")
+async def count_message(ctx, arg: int):
+    if ctx.author.name != "Fargus":
+        print("не фаргус")
+        await ctx.send("Ты не Fargus")
+        return
+    all_messege_in_channel_map ={}
+    channel = ctx.channel
+    count = 0
+    async for message in channel.history(limit=None):
+        # if message.author.nick is not None:
+        #     author_name = message.author.nick
+        # else:
+        author_name = message.author.name
+        if author_name in all_messege_in_channel_map:
+            all_messege_in_channel_map[author_name] +=1
+        else:
+            all_messege_in_channel_map[author_name] = 1
+        count += 1
+        if count % 1000 == 0:
+            print(count)
+    sorted_all_message = sorted(all_messege_in_channel_map.items(), key= lambda x: x[1], reverse=True)
+    '''
+m = {}
+m["asdf"]=5
+m["asdf1"]=6
+m["asdf2"]=7
+
+def conq_tupple(tupple):
+    res = " ".join(map(lambda y: str(y), tupple))
+    return res
+
+data = list(m.items())
+res = map(lambda x : conq_tupple(x), data)
+res = "\n".join(res)
+print(res)
+    '''
+    for user_message_info in sorted_all_message[::-1]:
+        if user_message_info[1] < 3:
+            sorted_all_message.remove(user_message_info)
+
+    split_result = []
+    # one_part_len = int(len(sorted_all_message)/arg)
+    one_part_len = arg
+    print("one part len = " + str(one_part_len))
+
+    parts = len(sorted_all_message) / one_part_len
+    if parts > int(parts):
+        parts = int(parts) + 1
+    print("parts = " + str(parts))
+
+    for i in range(parts):
+        split_result.append(sorted_all_message[i*one_part_len:i*one_part_len+one_part_len])
+    await ctx.send("Всего сообщения в этом чате: " + count)
+    for part in split_result:
+        res = "\n".join(map(lambda x: " - ".join(map(lambda y: str(y), x)), part))
+        print(res)
+        await ctx.send(res)
 
 
 @bot.command(name="say", pass_context=True, help="<текст> - произносит в воисе")
@@ -246,6 +336,8 @@ async def on_reaction_remove(reaction, user):
     #     await channel.send(user.name)
     # else:
     print("remove")
+
+
 
 # @bot.check
 # async def globally_block_dms(ctx):
