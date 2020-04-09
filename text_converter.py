@@ -20,6 +20,7 @@ def spam(text):
 
     if len(text) > 25 and text.count(" ") < len(text)/18:
         print("asdfll;j;asdjf spam!")
+        return True
 
     for i in range(int(len(text) / 2)):
         for j in range(int(len(text) / 2) - 5):
