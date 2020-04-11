@@ -1,12 +1,10 @@
 import os
 from operator import itemgetter
 
-
 import dir_helper
 import google_voice
 import text_converter
 import discord_token
-
 
 import discord
 import datetime
@@ -25,13 +23,13 @@ GUILD_ID = 539879904506806282
 GUILD = None
 OWNER = None
 
-
-bot = commands.Bot(command_prefix='.') #инициализируем бота с префиксом '.'
+bot = commands.Bot(command_prefix='.')  # инициализируем бота с префиксом '.'
 # client = discord.Client()
 
 global voice_client
 
 file_list = dir_helper.file_list("voice_files/")
+
 
 @bot.command(pass_context=True, help="- показывает как давно вы на сервере")
 async def when_i_joined(ctx):
@@ -47,7 +45,7 @@ async def when_i_joined(ctx):
         res = 'Напиши во "флудильню", не захламляй другие чаты'
     await ctx.send(res)
 
-        # res = request_user_info.id
+    # res = request_user_info.id
     # await ctx.send(res) #отправляем обратно аргумент
 
 
@@ -112,13 +110,12 @@ async def old(ctx, top: int, *args):
 async def choose(ctx, *args):
     while "или" in args:
         args.remove("или")
-    res = random.randint(0, len(args)-1)
+    res = random.randint(0, len(args) - 1)
     await ctx.send("Выбираю: " + args[res])
 
 
 @bot.command(name="ping", pass_context=True)
 async def ping(ctx, member: discord.Member):
-
     await ctx.send("<@!" + str(member.id) + ">")
 
 
@@ -143,7 +140,6 @@ async def on_ready():
     GUILD = bot.get_guild(GUILD_ID)
     OWNER = GUILD.owner
 
-
     for channel in GUILD.channels:
         # if channel.name == "флудильня":
         if channel.name == "test_farbot":
@@ -160,8 +156,7 @@ async def on_ready():
                 await message.delete()
                 await flud_chanel.send(welcome_message)
 
-
-    print('Ready! ' + "="*50)
+    print('Ready! ' + "=" * 50)
 
 
 @bot.command(pass_context=True)
@@ -196,7 +191,6 @@ async def leave(ctx):
         await bot.voice_clients[0].disconnect()
 
 
-
 # @bot.command(name="p", pass_context=True, help="воспроизводит один из файлов: " + ", ".join(file_list))
 # async def play_local(ctx, file_name):
 #
@@ -207,13 +201,13 @@ async def leave(ctx):
 #     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
 
 
-@bot.command(name="clear", pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
-async def clear(ctx, count_on_delete_message: int):
+@bot.command(aliases=["c", "clear"], pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
+async def clear_all_message(ctx, count_on_delete_message: int):
     # global FARGUS
     if ctx.author == OWNER:
         count = 0
         authors_of_deleted_messages = {}
-        async for message in ctx.channel.history(limit=count_on_delete_message+1):
+        async for message in ctx.channel.history(limit=count_on_delete_message + 1):
             message_author_name = get_nick_or_name(message.author)
             if message_author_name in authors_of_deleted_messages:
                 authors_of_deleted_messages[message_author_name] += 1
@@ -221,10 +215,41 @@ async def clear(ctx, count_on_delete_message: int):
                 authors_of_deleted_messages[message_author_name] = 1
             await message.delete()
             count += 1
-        res = "Я удалил " + str(count) + " сообщений\n"
+
+        # удаление упомнинания об команде удаления в отчете от бота
+        authors_of_deleted_messages[get_nick_or_name(ctx.author)] -= 1
+        if authors_of_deleted_messages[get_nick_or_name(ctx.author)] == 0:
+            authors_of_deleted_messages.pop(get_nick_or_name(ctx.author))
+
+        res = "Я удалил " + str(count + 1) + " сообщений\n"
+        for elem in list(authors_of_deleted_messages.items()):
+            res += str(elem[1]) + ' от ' + elem[0] + '\n'
         await ctx.send(res, delete_after=5)
     else:
-        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ")
+        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ", delete_after=5)
+
+
+@bot.command(name="clear_my_message", pass_context=True, help="<число> удаляет заданное кол-во ваших сообщений из последних 100 сообщений")
+async def clear_my_message(ctx, count_on_delete_message: int):
+    request_author = ctx.author
+    count_on_delete_message += 1
+    author_roles = {roles.name for roles in request_author.roles}
+    # истина если не имеют общих элементов
+    if author_roles.isdisjoint({"Вассал", "Доверенный вассал", "Монарх"}):
+        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ", delete_after=5)
+
+    else:
+        count = -1
+        async for message in ctx.channel.history(limit=200 + 1):
+            if request_author == message.author:
+                await message.delete()
+                count_on_delete_message -= 1
+                count += 1
+            if count_on_delete_message == 0:
+                res = "Я удалил " + str(count) + " ваших сообщений"
+                await ctx.send(res, delete_after=5)
+                return
+        await ctx.send("Я удалил " + str(count) + " ваших сообщений", delete_after=5)
 
 
 @bot.command(name="count", pass_context=True, help="Выводит колличество сообщений в этом чате для каждого пользователя")
@@ -233,7 +258,7 @@ async def count_message(ctx, arg: int):
         print("не фаргус")
         await ctx.send("Ты не Fargus")
         return
-    all_messege_in_channel_map ={}
+    all_messege_in_channel_map = {}
     channel = ctx.channel
     count = 0
     async for message in channel.history(limit=None):
@@ -242,13 +267,13 @@ async def count_message(ctx, arg: int):
         # else:
         author_name = message.author.name
         if author_name in all_messege_in_channel_map:
-            all_messege_in_channel_map[author_name] +=1
+            all_messege_in_channel_map[author_name] += 1
         else:
             all_messege_in_channel_map[author_name] = 1
         count += 1
         if count % 1000 == 0:
             print(count)
-    sorted_all_message = sorted(all_messege_in_channel_map.items(), key= lambda x: x[1], reverse=True)
+    sorted_all_message = sorted(all_messege_in_channel_map.items(), key=lambda x: x[1], reverse=True)
     '''
 m = {}
 m["asdf"]=5
@@ -279,7 +304,7 @@ print(res)
     print("parts = " + str(parts))
 
     for i in range(parts):
-        split_result.append(sorted_all_message[i*one_part_len:i*one_part_len+one_part_len])
+        split_result.append(sorted_all_message[i * one_part_len:i * one_part_len + one_part_len])
     await ctx.send("Всего сообщения в этом чате: " + count)
     for part in split_result:
         res = "\n".join(map(lambda x: " - ".join(map(lambda y: str(y), x)), part))
@@ -287,19 +312,17 @@ print(res)
         await ctx.send(res)
 
 
-
-
 @bot.command(name="move", pass_context=True, help="<название воиса> - перенос в воис")
 async def move(ctx, voice_name: str):
-    for channel in GUILD.channels:
-        if channel.name == voice_name:
-            await ctx.author.edit(voice_channel=channel)
-            break
+    if ctx.author == OWNER:
+        for channel in GUILD.channels:
+            if channel.name == voice_name:
+                await ctx.author.edit(voice_channel=channel)
+                break
 
 
 @bot.command(name="say", pass_context=True, help="<текст> - произносит в воисе")
 async def say(ctx, *args):
-
     author = ctx.message.author
     voice = author.voice
     author_name = get_nick_or_name(author)
@@ -327,6 +350,7 @@ async def say(ctx, *args):
     voice_clients = bot.voice_clients
     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
 
+
 @bot.event
 async def on_typing(channel, user, when):
     if channel.name == "флудильня" and user.name in ["Ascendant  (Эмиль)"]:
@@ -352,11 +376,13 @@ async def on_reaction_remove(reaction, user):
     # else:
     print("remove")
 
+
 def get_nick_or_name(author):
     if author.nick is not None:
         return author.nick
     else:
         return author.name
+
 
 # @bot.check
 # async def globally_block_dms(ctx):
@@ -371,6 +397,3 @@ def get_nick_or_name(author):
 #         await ctx.send("op")
 
 bot.run(TOKEN)
-
-
-
