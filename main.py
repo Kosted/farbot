@@ -212,10 +212,17 @@ async def clear(ctx, count_on_delete_message: int):
     # global FARGUS
     if ctx.author == OWNER:
         count = 0
+        authors_of_deleted_messages = {}
         async for message in ctx.channel.history(limit=count_on_delete_message+1):
+            message_author_name = get_nick_or_name(message.author)
+            if message_author_name in authors_of_deleted_messages:
+                authors_of_deleted_messages[message_author_name] += 1
+            else:
+                authors_of_deleted_messages[message_author_name] = 1
             await message.delete()
             count += 1
-        await ctx.send("Я удалил " + str(count) + " сообщений", delete_after=5)
+        res = "Я удалил " + str(count) + " сообщений\n"
+        await ctx.send(res, delete_after=5)
     else:
         await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ")
 
@@ -295,10 +302,7 @@ async def say(ctx, *args):
 
     author = ctx.message.author
     voice = author.voice
-    if author.nick is not None:
-        author_name = author.nick
-    else:
-        author_name = author.name
+    author_name = get_nick_or_name(author)
     if voice is not None:
         voice = voice.channel
         if len(bot.voice_clients) == 0:
@@ -348,7 +352,11 @@ async def on_reaction_remove(reaction, user):
     # else:
     print("remove")
 
-
+def get_nick_or_name(author):
+    if author.nick is not None:
+        return author.nick
+    else:
+        return author.name
 
 # @bot.check
 # async def globally_block_dms(ctx):
