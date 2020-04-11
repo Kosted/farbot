@@ -5,6 +5,7 @@ from operator import itemgetter
 import dir_helper
 import google_voice
 import text_converter
+import discord_token
 
 
 import discord
@@ -19,10 +20,10 @@ from websockets import typing
 logger = logging.getLogger('discord')
 logging.basicConfig(level=logging.INFO)
 
-TOKEN = "NjkyMDc3NjQ1MTY0NDQ1NzY3.XoVA6A.bbISsep_-UPSOsXoLg-M-Vl-4EU"
+TOKEN = discord_token.TOKEN
 GUILD_ID = 539879904506806282
-fargus_team = ""
-FARGUS = ""
+GUILD = None
+OWNER = None
 
 
 bot = commands.Bot(command_prefix='.') #инициализируем бота с префиксом '.'
@@ -75,7 +76,7 @@ async def pasholnahuy(ctx, *args):
 
 @bot.command(name="roll", pass_context=True, help="<число или ничего> - выдает случайное число")
 async def roll(ctx, *args):
-    res = "temp"
+    res = None
     if len(args) > 0:
         a = args[0]
 
@@ -96,7 +97,7 @@ async def roll(ctx, *args):
 @bot.command(name="old", pass_context=True, help="<число> - Топ долгожителей этого сервера")
 async def old(ctx, top: int, *args):
     all_members_with_days = list()
-    for member in fargus_team.members:
+    for member in GUILD.members:
         all_members_with_days.append([member, datetime.datetime.today() - member.joined_at])
 
     all_members_with_days.sort(key=itemgetter(1), reverse=True)
@@ -137,13 +138,13 @@ async def ping(ctx, member: discord.Member):
 @bot.event
 async def on_ready():
     welcome_message = "я готов к использованию, если видишь меня онлайн на сервере.\nЧтобы узнать, что я могу введи .help"
-    global fargus_team
-    global FARGUS
-    fargus_team = bot.get_guild(GUILD_ID)
-    FARGUS = fargus_team.owner
+    global GUILD
+    global OWNER
+    GUILD = bot.get_guild(GUILD_ID)
+    OWNER = GUILD.owner
 
 
-    for channel in fargus_team.channels:
+    for channel in GUILD.channels:
         # if channel.name == "флудильня":
         if channel.name == "test_farbot":
             flud_chanel = channel
@@ -209,9 +210,9 @@ async def leave(ctx):
 @bot.command(name="clear", pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
 async def clear(ctx, count_on_delete_message: int):
     # global FARGUS
-    if ctx.author == FARGUS:
+    if ctx.author == OWNER:
         count = 0
-        async for message in ctx.channel.history(limit=count_on_delete_message):
+        async for message in ctx.channel.history(limit=count_on_delete_message+1):
             await message.delete()
             count += 1
         await ctx.send("Я удалил " + str(count) + " сообщений", delete_after=5)
@@ -283,7 +284,7 @@ print(res)
 
 @bot.command(name="move", pass_context=True, help="<название воиса> - перенос в воис")
 async def move(ctx, voice_name: str):
-    for channel in fargus_team.channels:
+    for channel in GUILD.channels:
         if channel.name == voice_name:
             await ctx.author.edit(voice_channel=channel)
             break
