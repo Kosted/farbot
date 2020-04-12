@@ -119,6 +119,30 @@ async def ping(ctx, member: discord.Member):
     await ctx.send("<@!" + str(member.id) + ">")
 
 
+@bot.command(aliases=["who_hase_this_role", "r", "role"], pass_context=True, help='<название роли или часть без опечаток> - выводит людей с ролью')
+async def members_with_role(ctx, role_name: str):
+    # if role_name[0] is '@':
+    #     role_name = role_name[1:]
+    # all_server_roles = {roles.name for roles in GUILD.roles}
+    # if role_name in all_server_roles:
+    required_role = get_role_by_name(role_name, GUILD.roles)
+
+    if required_role is not None:
+        res = 'Роль "' + required_role.name + '" имеют ' + str(len(required_role.members)) + ' человек.\n'
+        if required_role.name == "@everyone":
+            res += 'Или иными словами - все на этом сервере и для справки вообще каждый человек в дискорде'
+            res = res.replace("@everyone", 'everyone')
+        else:
+            if len(required_role.members) != 0:
+                members_with_required_role = [get_nick_or_name(member) for member in required_role.members]
+                res += 'А конкретно: ' + ", ".join(members_with_required_role)
+        await ctx.send(res)
+    else:
+        res = 'Не могу найти похожей роли. Вот все роли, что имеются на сервере:\n'
+        res += ", ".join([roles.name for roles in GUILD.roles][1:])
+        await ctx.send(res)
+
+
 # @bot.command(name="help", pass_context=True)
 # async def help(ctx, member: discord.Member):
 #
@@ -142,13 +166,12 @@ async def on_ready():
 
     for channel in GUILD.channels:
         # if channel.name == "флудильня":
-        if channel.name == "test_farbot":
+        if "test_farbot" in channel.name:
             flud_chanel = channel
             break
     async for message in channel.history(limit=1):
         if message.author.id != bot.user.id:
             await flud_chanel.send(welcome_message)
-            print("yes")
         else:
             if message.content != welcome_message:
                 await flud_chanel.send(welcome_message)
@@ -221,7 +244,7 @@ async def clear_all_message(ctx, count_on_delete_message: int):
         if authors_of_deleted_messages[get_nick_or_name(ctx.author)] == 0:
             authors_of_deleted_messages.pop(get_nick_or_name(ctx.author))
 
-        res = "Я удалил " + str(count + 1) + " сообщений\n"
+        res = "Я удалил " + str(count - 1) + " сообщений\n"
         for elem in list(authors_of_deleted_messages.items()):
             res += str(elem[1]) + ' от ' + elem[0] + '\n'
         await ctx.send(res, delete_after=5)
@@ -229,7 +252,8 @@ async def clear_all_message(ctx, count_on_delete_message: int):
         await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ", delete_after=5)
 
 
-@bot.command(name="clear_my_message", pass_context=True, help="<число> удаляет заданное кол-во ваших сообщений из последних 100 сообщений")
+@bot.command(name="clear_my_message", pass_context=True,
+             help="<число> удаляет заданное кол-во ваших сообщений из последних 100 сообщений")
 async def clear_my_message(ctx, count_on_delete_message: int):
     request_author = ctx.author
     count_on_delete_message += 1
@@ -254,11 +278,11 @@ async def clear_my_message(ctx, count_on_delete_message: int):
 
 @bot.command(name="count", pass_context=True, help="Выводит колличество сообщений в этом чате для каждого пользователя")
 async def count_message(ctx, arg: int):
-    if ctx.author.name != "Fargus":
+    if ctx.author != OWNER:
         print("не фаргус")
         await ctx.send("Ты не Fargus")
         return
-    all_messege_in_channel_map = {}
+    all_message_in_channel_map = {}
     channel = ctx.channel
     count = 0
     async for message in channel.history(limit=None):
@@ -266,14 +290,14 @@ async def count_message(ctx, arg: int):
         #     author_name = message.author.nick
         # else:
         author_name = message.author.name
-        if author_name in all_messege_in_channel_map:
-            all_messege_in_channel_map[author_name] += 1
+        if author_name in all_message_in_channel_map:
+            all_message_in_channel_map[author_name] += 1
         else:
-            all_messege_in_channel_map[author_name] = 1
+            all_message_in_channel_map[author_name] = 1
         count += 1
         if count % 1000 == 0:
             print(count)
-    sorted_all_message = sorted(all_messege_in_channel_map.items(), key=lambda x: x[1], reverse=True)
+    sorted_all_message = sorted(all_message_in_channel_map.items(), key=lambda x: x[1], reverse=True)
     '''
 m = {}
 m["asdf"]=5
@@ -382,6 +406,41 @@ def get_nick_or_name(author):
         return author.nick
     else:
         return author.name
+
+
+''' 
+Принимает на вход название роли и место в котором хранится массив с ними
+
+При полном совпадении возвращает объект роли
+За неимением полного совпадения возвращает первое вхождение искомого в полное название роли
+'''
+
+
+def get_role_by_name(role_name, search_start_point):
+    '''
+    role_like_required = None
+    role_name = role_name.lower()
+
+    role_names_list = [role.name.lower() for role in search_start_point]
+    for server_role in role_names_list:
+        if role_name in server_role:
+            if role_name == server_role:
+                return role
+            else:
+                if role_like_required is None:
+                    role_like_required = role
+    return role_like_required
+    '''
+    role_name = role_name.lower()
+    role_like_required = None
+    for role in search_start_point:
+        if role_name in role.name.lower():
+            if role_name == role.name.lower():
+                return role
+            else:
+                if role_like_required is None:
+                    role_like_required = role
+    return role_like_required
 
 
 # @bot.check
