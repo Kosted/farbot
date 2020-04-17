@@ -377,12 +377,12 @@ async def on_typing(channel, user, when):
 
 @bot.event
 async def on_raw_reaction_add(payload):
-
-    channel = await bot.fetch_channel(payload.channel_id)
-    message = await channel.fetch_message(payload.message_id)
-    if message.author == bot.user and payload.emoji.name == "❌":
-        await message.delete()
-    print("add: " + payload.emoji.name +'.')
+    if payload.member != bot.user:
+        channel = await bot.fetch_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        if message.author == bot.user and payload.emoji.name == "❌":
+            await message.delete()
+        print("add: " + payload.emoji.name +'.')
 
 
 @bot.event
