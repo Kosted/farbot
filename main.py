@@ -64,8 +64,8 @@ async def chance(ctx, *args):
     await send_and_add_reaction_for_delete(ctx,'Вероятность события "' + res + '" равна ' + chance_var + "%")
 
 
-@bot.command(name="farbot", pass_context=True)
-async def farbot(ctx, *args):
+@bot.command(aliases=["farbot", "f", "s", "sys"], pass_context=True)
+async def system(ctx, *args):
     if ctx.author.nick is not None:
         res = ctx.author.nick
     else:
@@ -329,7 +329,7 @@ print(res)
 
 
 @bot.command(name="move", pass_context=True, help="<название воиса> - перенос в воис")
-async def move(ctx, voice_name: str):
+async def move(ctx, voice_name: str): 
     if ctx.author == OWNER:
         for channel in GUILD.channels:
             if channel.name == voice_name:
@@ -382,7 +382,16 @@ async def on_raw_reaction_add(payload):
         message = await channel.fetch_message(payload.message_id)
         if message.author == bot.user and payload.emoji.name == "❌":
             await message.delete()
-        print("add: " + payload.emoji.name +'.')
+        print(get_nick_or_name(payload.member) +" add: " + payload.emoji.name +'.')
+
+
+@bot.command(pass_context=True, help="Отбирает роль тестировщика и доступ в чат")
+async def stop_test(ctx):
+    member = ctx.author
+    role = get_role_by_name("Тестировщик", member.roles)
+    await member.remove_roles(role)
+
+    # await
 
 
 @bot.event
@@ -434,6 +443,7 @@ def get_role_by_name(role_name, search_start_point):
                 if role_like_required is None:
                     role_like_required = role
     return role_like_required
+
 
 
 # @bot.check
