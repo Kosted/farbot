@@ -17,7 +17,8 @@ while TOKEN is None:
         TOKEN = os.environ['TOKEN']
         DATABASE_URL = os.environ['DATABASE_URL']
     except:
-        pass
+        print("TOKEN ищется")
+
 
 # print("TOKEN: " + TOKEN)
 # print("DATABASE_URL: " + DATABASE_URL)

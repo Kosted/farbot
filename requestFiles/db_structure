@@ -17,7 +17,7 @@
 -- DROP TABLE IF EXISTS public.guild CASCADE;
 CREATE TABLE public.guild (
 	guild_id text NOT NULL,
-	name text,
+	guild_name text,
 	bot_on_server bool DEFAULT True,
 	owner text,
 	CONSTRAINT guild_pk PRIMARY KEY (guild_id)
@@ -29,11 +29,11 @@ CREATE TABLE public.guild (
 -- DROP TABLE IF EXISTS public.member CASCADE;
 CREATE TABLE public.member (
 	guild_id text NOT NULL,
-	discord_id text NOT NULL,
+	member_id text NOT NULL,
 	activ bool DEFAULT True,
 	join_date date,
 	days_on_server smallint,
-	CONSTRAINT member_pk PRIMARY KEY (discord_id)
+	CONSTRAINT member_pk PRIMARY KEY (member_id)
 
 );
 -- ddl-end --
@@ -87,7 +87,7 @@ CREATE TABLE public.role_white_list (
 -- object: owner | type: CONSTRAINT --
 -- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner CASCADE;
 ALTER TABLE public.guild ADD CONSTRAINT owner FOREIGN KEY (owner)
-REFERENCES public.member (discord_id) MATCH FULL
+REFERENCES public.member (member_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
@@ -108,14 +108,14 @@ ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- object: member_id | type: CONSTRAINT --
 -- ALTER TABLE public.member_black_list DROP CONSTRAINT IF EXISTS member_id CASCADE;
 ALTER TABLE public.member_black_list ADD CONSTRAINT member_id FOREIGN KEY (member_id)
-REFERENCES public.member (guild_id) MATCH FULL
+REFERENCES public.member (member_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
 -- object: member_id | type: CONSTRAINT --
 -- ALTER TABLE public.member_white_list DROP CONSTRAINT IF EXISTS member_id CASCADE;
 ALTER TABLE public.member_white_list ADD CONSTRAINT member_id FOREIGN KEY (member_id)
-REFERENCES public.member (discord_id) MATCH FULL
+REFERENCES public.member (member_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
