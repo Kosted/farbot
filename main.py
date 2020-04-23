@@ -446,20 +446,25 @@ async def stop_test(ctx):
 
 
 @bot.command(aliases=["stream", "st"], pass_context=True, help="Дает роль, для оповещений о стриме")
-async def stream_notify(ctx, term):
+async def stream_notify(ctx, *term):
     member = ctx.author
     member_name = get_nick_or_name(member)
     role = get_role_by_name("Жду стрима", ctx.guild.roles)
+    if len(term) != 0:
+        term = term[0]
+    else:
+        await send_and_add_reaction_for_delete(ctx, member_name + ", введите после команды stream \"+\" либо \"-\"")
+        return
     if term == "+":
         await member.add_roles(role)
-        send_and_add_reaction_for_delete(ctx, member_name + ", роль \"Жду Стрима\" добавлена")
+        await send_and_add_reaction_for_delete(ctx, member_name + ", роль \"Жду Стрима\" добавлена")
     elif term == "-":
         role = get_role_by_name("Жду стрима", member.roles)
         if role is not None:
             await member.remove_roles(role)
-            send_and_add_reaction_for_delete(ctx, member_name + ", больше вас не будут предупреждать о начале стрима")
+            await send_and_add_reaction_for_delete(ctx, member_name + ", больше вас не будут предупреждать о начале стрима")
         else:
-            send_and_add_reaction_for_delete(ctx, member_name + ", у вас нет роли \"Жду Стрима\"")
+            await send_and_add_reaction_for_delete(ctx, member_name + ", у вас нет роли \"Жду Стрима\"")
 
     else:
         await send_and_add_reaction_for_delete(ctx, member_name + ", введите \"+\" либо \"-\"")
