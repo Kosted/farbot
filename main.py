@@ -366,13 +366,9 @@ print(res)
 
     for i in range(parts):
         split_result.append(sorted_all_message[i * one_part_len:i * one_part_len + one_part_len])
-<<<<<<< HEAD
+
     await send_and_add_reaction_for_delete(ctx, "Всего сообщения в этом чате: " + str(count))
-=======
 
-    await send_and_add_reaction_for_delete(ctx, "Всего сообщения в этом чате: " + count)
-
->>>>>>> c51ffe22016ac9b97d9796dd1bab583365ee497a
     for part in split_result:
         res = "\n".join(map(lambda x: " - ".join(map(lambda y: str(y), x)), part))
         print(res)
