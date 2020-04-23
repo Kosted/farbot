@@ -5,6 +5,7 @@ import dir_helper
 import google_voice
 import text_converter
 import discord_token
+import db_methods
 
 import discord
 import datetime
@@ -20,15 +21,64 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = discord_token.TOKEN
 GUILD_ID = 539879904506806282
+log_channel = None
 GUILD = None
 OWNER = None
 
+global bot
 bot = commands.Bot(command_prefix='.')  # инициализируем бота с префиксом '.'
 # client = discord.Client()
 
 global voice_client
 
 file_list = dir_helper.file_list("voice_files/")
+
+
+def get_bot():
+    return bot
+
+
+def to_db_str(s):
+    return "'" + str(s) + "'"
+
+
+@bot.command(pass_context=True, help="отладка, не для смертных")
+async def sql(ctx, *command: str):
+    if ctx.author == OWNER:
+        db_methods.cursor.execute(' '.join(command))
+        db_methods.connection.commit()
+        if "select" in ctx.message.content.lower():
+            result = db_methods.cursor.fetchall()
+            if result is not None:
+                print(result)
+
+
+# @bot.command(pass_context=True, help="отладка, не для смертных")
+# async def init(ctx):
+#     if ctx.author == OWNER:
+#         # live_guilds = bot.guilds
+#         db_guild = db_methods.select_request(columns=("guild_id", "bot_on_server"),
+#                                              where="guild_id = " + to_db_str(ctx.guild.id))
+#         if len(db_guild) == 1:
+#             pass  # guild update
+#         else:
+#             # ctx.
+#             db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server', 'owner'),
+#                                       values=(to_db_str(ctx.guild.id), ctx.guild.name, True, to_db_str(ctx.author.id)),
+#                                       table='guild')
+#
+#
+# @bot.command(pass_context=True, help="отладка, не для смертных")
+# async def ti(ctx, *command: str):
+#     if ctx.author == OWNER:
+#         # result = db_methods.select_request()
+#         # print(db_methods.insert_request())
+#         db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
+#                                   values=(("123", "guild name123", True),
+#                                           ("456", "guild name456", True),
+#                                           ("789", "guild name789", True)),
+#                                   table="guild")
+        # print(result)
 
 
 async def send_and_add_reaction_for_delete(send_point, message_text):
@@ -53,7 +103,6 @@ async def when_i_joined(ctx):
     # await sanded_message.add_reaction("❌")
 
 
-
 @bot.command(name="chance", pass_context=True, help="<любое событие> - вероятность события")
 async def chance(ctx, *args):
     res = " "
@@ -61,7 +110,7 @@ async def chance(ctx, *args):
     chance_var = str(res.lower().__hash__())[-2:]
     if chance_var[0] == "0":
         chance_var = chance_var[1]
-    await send_and_add_reaction_for_delete(ctx,'Вероятность события "' + res + '" равна ' + chance_var + "%")
+    await send_and_add_reaction_for_delete(ctx, 'Вероятность события "' + res + '" равна ' + chance_var + "%")
 
 
 @bot.command(aliases=["farbot", "f", "s", "sys"], pass_context=True)
@@ -72,9 +121,9 @@ async def system(ctx, *args):
         res = ctx.author.name
     if ctx.author.name == "Fargus":
         if len(args) != 0:
-            await ctx.send(*args)
+            await ctx.send(eval("".join(args)))
     else:
-        await send_and_add_reaction_for_delete(ctx,'||Пашел нахер, ' + res + "||")
+        await send_and_add_reaction_for_delete(ctx, '||Пашел нахер, ' + res + "||")
 
 
 @bot.command(name="roll", pass_context=True, help="<число или ничего> - выдает случайное число")
@@ -124,7 +173,8 @@ async def ping(ctx, member: discord.Member):
     await ctx.send("<@!" + str(member.id) + ">")
 
 
-@bot.command(aliases=["who_hase_this_role", "r", "role"], pass_context=True, help='<название роли или часть без опечаток> - выводит людей с ролью')
+@bot.command(aliases=["who_hase_this_role", "r", "role"], pass_context=True,
+             help='<название роли или часть без опечаток> - выводит людей с ролью')
 async def members_with_role(ctx, role_name: str):
     # if role_name[0] is '@':
     #     role_name = role_name[1:]
@@ -153,8 +203,12 @@ async def on_ready():
     welcome_message = "я готов к использованию, если видишь меня онлайн на сервере.\nЧтобы узнать, что я могу введи .help"
     global GUILD
     global OWNER
+    global log_channel
+    db_methods.open_connection()
+    db_methods.init_db()
     GUILD = bot.get_guild(GUILD_ID)
     OWNER = GUILD.owner
+    log_channel = await  bot.fetch_channel(701183371166089276)
 
     for channel in GUILD.channels:
         # if channel.name == "флудильня":
@@ -206,19 +260,8 @@ async def leave(ctx):
         await bot.voice_clients[0].disconnect()
 
 
-# @bot.command(name="p", pass_context=True, help="воспроизводит один из файлов: " + ", ".join(file_list))
-# async def play_local(ctx, file_name):
-#
-#     file_path = "/home/mcs/Загрузки/dm/" + file_name + ".mp3"
-#     # channel = ctx.message.author.voice.channel
-#     # voice = await channel.connect()
-#     voice_clients = bot.voice_clients
-#     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
-
-
 @bot.command(aliases=["c", "clear"], pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
 async def clear_all_message(ctx, count_on_delete_message: int):
-
     if ctx.author == OWNER:
         count = 0
         authors_of_deleted_messages = {}
@@ -241,7 +284,8 @@ async def clear_all_message(ctx, count_on_delete_message: int):
             res += str(elem[1]) + ' от ' + elem[0] + '\n'
         await ctx.send(res, delete_after=5)
     else:
-        await send_and_add_reaction_for_delete(ctx, ctx.author.name + ", у вас нет прав на это. Пока что... ", delete_after=5)
+        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ",
+                                               delete_after=5)
 
 
 @bot.command(name="clear_my_message", pass_context=True,
@@ -269,9 +313,10 @@ async def clear_my_message(ctx, count_on_delete_message: int):
 
 
 @bot.command(name="count", pass_context=True, help="Выводит колличество сообщений в этом чате для каждого пользователя")
-async def count_message(ctx, arg: int):
+async def count_message(ctx):
     if ctx.author != OWNER:
         print("не фаргус")
+        await log_channel.send(get_nick_or_name(ctx.author) + ", count только для фаргуса")
         await send_and_add_reaction_for_delete(ctx, "Ты не Fargus")
         return
     all_message_in_channel_map = {}
@@ -281,7 +326,7 @@ async def count_message(ctx, arg: int):
         # if message.author.nick is not None:
         #     author_name = message.author.nick
         # else:
-        author_name = message.author.name
+        author_name = message.author.name  # переделать на новый метод
         if author_name in all_message_in_channel_map:
             all_message_in_channel_map[author_name] += 1
         else:
@@ -311,7 +356,7 @@ print(res)
 
     split_result = []
     # one_part_len = int(len(sorted_all_message)/arg)
-    one_part_len = arg
+    one_part_len = 10
     print("one part len = " + str(one_part_len))
 
     parts = len(sorted_all_message) / one_part_len
@@ -321,9 +366,13 @@ print(res)
 
     for i in range(parts):
         split_result.append(sorted_all_message[i * one_part_len:i * one_part_len + one_part_len])
+<<<<<<< HEAD
+    await send_and_add_reaction_for_delete(ctx, "Всего сообщения в этом чате: " + str(count))
+=======
 
     await send_and_add_reaction_for_delete(ctx, "Всего сообщения в этом чате: " + count)
 
+>>>>>>> c51ffe22016ac9b97d9796dd1bab583365ee497a
     for part in split_result:
         res = "\n".join(map(lambda x: " - ".join(map(lambda y: str(y), x)), part))
         print(res)
@@ -331,7 +380,7 @@ print(res)
 
 
 @bot.command(name="move", pass_context=True, help="<название воиса> - перенос в воис")
-async def move(ctx, voice_name: str): 
+async def move(ctx, voice_name: str):
     if ctx.author == OWNER:
         for channel in GUILD.channels:
             if channel.name == voice_name:
@@ -354,7 +403,8 @@ async def say(ctx, *args):
 
     text = " ".join(args)
     if text_converter.spam(text):
-        await send_and_add_reaction_for_delete(ctx, author_name + " не спамь. Если бот ошибся и это не было спамом сообщи мне, попытаюсь исправить")
+        await send_and_add_reaction_for_delete(ctx,
+                                               author_name + " не спамь. Если бот ошибся и это не было спамом сообщи мне, попытаюсь исправить")
         return
 
     # text = text[:200]
@@ -375,6 +425,7 @@ async def on_typing(channel, user, when):
         await channel.send(user.nick + ", хватит спамить, иди погуляй")
     else:
         print(user.name + " in " + channel.name)
+        await log_channel.send(get_nick_or_name(user) + " in " + channel.name)
 
 
 @bot.event
@@ -384,7 +435,9 @@ async def on_raw_reaction_add(payload):
         message = await channel.fetch_message(payload.message_id)
         if message.author == bot.user and payload.emoji.name == "❌":
             await message.delete()
-        print(get_nick_or_name(payload.member) +" add: " + payload.emoji.name +'.')
+        log_message = get_nick_or_name(payload.member) + " add: " + payload.emoji.name + ' on ' + channel.name
+        print(log_message)
+        await log_channel.send(log_message)
 
 
 @bot.command(pass_context=True, help="Отбирает роль тестировщика и доступ в чат")
@@ -394,6 +447,27 @@ async def stop_test(ctx):
     await member.remove_roles(role)
 
     # await
+
+
+@bot.command(aliases=["stream", "st"], pass_context=True, help="Дает роль, для оповещений о стриме")
+async def stream_notify(ctx, term):
+    member = ctx.author
+    member_name = get_nick_or_name(member)
+    role = get_role_by_name("Жду стрима", ctx.guild.roles)
+    if term == "+":
+        await member.add_roles(role)
+        send_and_add_reaction_for_delete(ctx, member_name + ", роль \"Жду Стрима\" добавлена")
+    elif term == "-":
+        role = get_role_by_name("Жду стрима", member.roles)
+        if role is not None:
+            await member.remove_roles(role)
+            send_and_add_reaction_for_delete(ctx, member_name + ", больше вас не будут предупреждать о начале стрима")
+        else:
+            send_and_add_reaction_for_delete(ctx, member_name + ", у вас нет роли \"Жду Стрима\"")
+
+    else:
+        await send_and_add_reaction_for_delete(ctx, member_name + ", введите \"+\" либо \"-\"")
+
 
 
 @bot.event
@@ -447,7 +521,6 @@ def get_role_by_name(role_name, search_start_point):
     return role_like_required
 
 
-
 # @bot.check
 # async def globally_block_dms(ctx):
 #     if ctx.channel.name == "test_farbot":
@@ -459,5 +532,9 @@ def get_role_by_name(role_name, search_start_point):
 #     request_user_info = ctx.author
 #     if request_user_info.id == "337582745314263041":
 #         await ctx.send("op")
+
+def fill_guild_information():
+    guilds = bot.guilds
+
 
 bot.run(TOKEN)
