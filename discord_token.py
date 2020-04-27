@@ -2,12 +2,14 @@ import json, os
 
 TOKEN = None
 DATABASE_URL = None
+DEBUG = False
 
 try:
     file = open("config.json", 'r')
     config = json.load(file)
     TOKEN = config['TOKEN']
     DATABASE_URL = config['DATABASE_URL']
+    DEBUG = True
 except:
     print("file with token doesn't exist")
 

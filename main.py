@@ -1,4 +1,5 @@
 import os
+from gettext import find
 from operator import itemgetter
 
 import dir_helper
@@ -21,9 +22,11 @@ logging.basicConfig(level=logging.INFO)
 
 TOKEN = discord_token.TOKEN
 GUILD_ID = 539879904506806282
-log_channel = None
+debug_channel = 692081802692526150
+log_channel = 701183371166089276
 GUILD = None
 OWNER = None
+DEBUG = discord_token.DEBUG
 
 global bot
 bot = commands.Bot(command_prefix='.')  # инициализируем бота с префиксом '.'
@@ -68,17 +71,21 @@ async def sql(ctx, *command: str):
 #                                       table='guild')
 #
 #
-# @bot.command(pass_context=True, help="отладка, не для смертных")
-# async def ti(ctx, *command: str):
-#     if ctx.author == OWNER:
-#         # result = db_methods.select_request()
-#         # print(db_methods.insert_request())
-#         db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
-#                                   values=(("123", "guild name123", True),
-#                                           ("456", "guild name456", True),
-#                                           ("789", "guild name789", True)),
-#                                   table="guild")
-        # print(result)
+@bot.command(pass_context=True, help="отладка, не для смертных")
+async def ti(ctx, *command: str):
+    if ctx.author == OWNER:
+        result = db_methods.select_request(tables=("guild",),
+                                           columns=("guild_id", "guild_name",),
+                                           limit=2,
+                                           where={"where_field": "bot_on_server", "sign": "=", "where_value": True})
+        # print(db_methods.insert_request())
+
+        db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
+                                  values=(("123", "guild name123", True),
+                                          ("456", "guild name456", True),
+                                          ("789", "guild name789", False)),
+                                  table="guild")
+        print(result)
 
 
 async def send_and_add_reaction_for_delete(send_point, message_text):
@@ -204,28 +211,31 @@ async def on_ready():
     global GUILD
     global OWNER
     global log_channel
+    global debug_channel
     db_methods.open_connection()
     db_methods.init_db()
     GUILD = bot.get_guild(GUILD_ID)
     OWNER = GUILD.owner
-    log_channel = await  bot.fetch_channel(701183371166089276)
+    log_channel = await bot.fetch_channel(log_channel)
+    debug_channel = await bot.fetch_channel(debug_channel)
 
-    for channel in GUILD.channels:
-        # if channel.name == "флудильня":
-        if "test_farbot" in channel.name:
-            flud_chanel = channel
-            break
-    async for message in channel.history(limit=1):
-        if message.author.id != bot.user.id:
-            await send_and_add_reaction_for_delete(flud_chanel, welcome_message)
-        else:
-            if message.content != welcome_message:
-                await send_and_add_reaction_for_delete(flud_chanel, welcome_message)
+    # for channel in GUILD.channels:
+    #     # if channel.name == "флудильня":
+    #     if "test_farbot" in channel.name:
+    #         flud_chanel = channel
+    #         break
+    if not DEBUG:
+        async for message in debug_channel.history(limit=1):
+            if message.author.id != bot.user.id:
+                await send_and_add_reaction_for_delete(debug_channel, welcome_message)
             else:
-                await message.delete()
-                await send_and_add_reaction_for_delete(flud_chanel, welcome_message)
+                if message.content != welcome_message:
+                    await send_and_add_reaction_for_delete(debug_channel, welcome_message)
+                else:
+                    await message.delete()
+                    await send_and_add_reaction_for_delete(debug_channel, welcome_message)
 
-    print('Ready! ' + "=" * 50)
+    print('== Ready! ', "=" * 50)
 
 
 @bot.command(pass_context=True)
@@ -285,7 +295,7 @@ async def clear_all_message(ctx, count_on_delete_message: int):
         await ctx.send(res, delete_after=5)
     else:
         await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ",
-                                               delete_after=5)
+                       delete_after=5)
 
 
 @bot.command(name="clear_my_message", pass_context=True,
@@ -462,13 +472,13 @@ async def stream_notify(ctx, *term):
         role = get_role_by_name("Жду стрима", member.roles)
         if role is not None:
             await member.remove_roles(role)
-            await send_and_add_reaction_for_delete(ctx, member_name + ", больше вас не будут предупреждать о начале стрима")
+            await send_and_add_reaction_for_delete(ctx,
+                                                   member_name + ", больше вас не будут предупреждать о начале стрима")
         else:
             await send_and_add_reaction_for_delete(ctx, member_name + ", у вас нет роли \"Жду Стрима\"")
 
     else:
         await send_and_add_reaction_for_delete(ctx, member_name + ", введите \"+\" либо \"-\"")
-
 
 
 @bot.event
@@ -478,6 +488,16 @@ async def on_reaction_remove(reaction, user):
     #     await channel.send(user.name)
     # else:
     print("remove")
+
+
+@bot.event
+async def on_guild_join(guild):
+    # log_channel = await  bot.fetch_channel(701183371166089276)
+
+    for channel in guild.channels:
+        # if channel.name == "флудильня":
+        if "test_farbot" in channel.name:
+            await send_and_add_reaction_for_delete(channel, 'welcome_message')
 
 
 def get_nick_or_name(author):
@@ -536,6 +556,23 @@ def get_role_by_name(role_name, search_start_point):
 
 def fill_guild_information():
     guilds = bot.guilds
+
+
+@bot.check
+async def globally_debug_mod_check(ctx):
+
+    if DEBUG and GUILD == ctx.guild and OWNER == ctx.author and ctx.channel == debug_channel:
+        return True
+    elif not DEBUG:
+        if ctx.channel == debug_channel:
+            if ctx.author != OWNER:
+                return True
+            else:
+                return False
+        else:
+            return True
+    else:
+        return False
 
 
 bot.run(TOKEN)
