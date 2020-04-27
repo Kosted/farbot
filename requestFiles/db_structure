@@ -44,7 +44,8 @@ CREATE TABLE public.member_black_list (
 	guild_id text NOT NULL,
 	member_id text NOT NULL,
 	command_name text[] NOT NULL,
-	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE
+	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
+	endlessly bool NOT NULL DEFAULT True
 );
 -- ddl-end --
 
@@ -53,8 +54,9 @@ CREATE TABLE public.member_black_list (
 CREATE TABLE public.member_white_list (
 	guild_id text NOT NULL,
 	member_id text NOT NULL,
-	command_name text[],
-	date_when_access_ends date DEFAULT CURRENT_DATE
+	command_name text[] NOT NULL,
+	date_when_access_ends date DEFAULT CURRENT_DATE,
+	endlessly bool NOT NULL DEFAULT True
 );
 -- ddl-end --
 
@@ -66,6 +68,7 @@ CREATE TABLE public.role_black_list (
 	commands_name text[] NOT NULL,
 	rolls_id text[] NOT NULL,
 	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
+	endlessly bool NOT NULL DEFAULT True,
 	CONSTRAINT role_black_list_pk PRIMARY KEY (preset_name)
 
 );
@@ -79,6 +82,7 @@ CREATE TABLE public.role_white_list (
 	command_name text[] NOT NULL,
 	rolls_id text[] NOT NULL,
 	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
+	endlessly bool NOT NULL DEFAULT True,
 	CONSTRAINT role_white_list_pk PRIMARY KEY (preset_name)
 
 );
