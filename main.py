@@ -48,7 +48,10 @@ def to_db_str(s):
 @bot.command(pass_context=True, help="отладка, не для смертных")
 async def sql(ctx, *command: str):
     if ctx.author == OWNER:
-        db_methods.cursor.execute(' '.join(command))
+        try:
+            db_methods.cursor.execute(' '.join(command))
+        except Exception:
+            print("error")
         db_methods.connection.commit()
         if "select" in ctx.message.content.lower():
             result = db_methods.cursor.fetchall()
@@ -56,21 +59,36 @@ async def sql(ctx, *command: str):
                 print(result)
 
 
-# @bot.command(pass_context=True, help="отладка, не для смертных")
-# async def init(ctx):
-#     if ctx.author == OWNER:
-#         # live_guilds = bot.guilds
-#         db_guild = db_methods.select_request(columns=("guild_id", "bot_on_server"),
-#                                              where="guild_id = " + to_db_str(ctx.guild.id))
-#         if len(db_guild) == 1:
-#             pass  # guild update
-#         else:
-#             # ctx.
-#             db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server', 'owner'),
-#                                       values=(to_db_str(ctx.guild.id), ctx.guild.name, True, to_db_str(ctx.author.id)),
-#                                       table='guild')
-#
-#
+@bot.command(pass_context=True, help="отладка, не для смертных")
+async def init(ctx):
+    if ctx.author == OWNER:
+        # live_guilds = bot.guilds
+        db_guild = db_methods.select_request(columns=("guild_id", "bot_on_server"),
+                                             where={"where_field":"guild_id",
+                                                    "sign": "=",
+                                                    "where_value": to_db_str(ctx.guild.id)})
+        if len(db_guild) == 1:
+            print("guild detected",db_guild)  # guild update
+        else:
+            # ctx.
+            print("guild don't detected\nlet's create!")
+            guild_id = str(ctx.guild.id)
+            db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
+                                      values=(guild_id, ctx.guild.name, True),
+                                      table='guild')
+
+            guild_members = ctx.guild.members
+            values = tuple((str(guild_id),
+                            str(member.id),
+                            member.name,
+                            True,
+                            member.joined_at) for member in guild_members)
+
+            db_methods.insert_request(columns=("guild_id", "member_id", 'member_name','activ', 'join_date'),
+                                      values=values,
+                                      table='member')
+
+
 @bot.command(pass_context=True, help="отладка, не для смертных")
 async def ti(ctx, *command: str):
     if ctx.author == OWNER:
