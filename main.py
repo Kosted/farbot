@@ -562,16 +562,21 @@ def fill_guild_information():
 async def globally_debug_mod_check(ctx):
 
     if DEBUG and GUILD == ctx.guild and OWNER == ctx.author and ctx.channel == debug_channel:
+        print("debug mod Fargus in test_farbot channel")
         return True
     elif not DEBUG:
         if ctx.channel == debug_channel:
             if ctx.author != OWNER:
+                print("not debug not Fargus in in test_farbot channel")
                 return True
             else:
+                print("not debug Fargus in test_farbot channel")
                 return False
         else:
+            print("not debug anybody not in test_farbot channel")
             return True
     else:
+        print("debug anybody or not in test_farbot channel")
         return False
 
 
