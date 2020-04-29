@@ -6,17 +6,12 @@ from psycopg2.extensions import AsIs
 from psycopg2 import sql
 import psycopg2.extras
 
+from db_objects import Where, unfold_list_and_use_class, Values, ColumnsAndValue
+
 DATABASE_URL = discord_token.DATABASE_URL
 
 global connection
 global cursor
-
-
-def ident_or_literal(s):
-    if type(s) == str:
-        return sql.Identifier(s)
-    else:
-        return sql.Literal(s)
 
 
 def open_connection():
@@ -45,7 +40,7 @@ def init_db():
         return True
     except (Exception, psycopg2.Error) as error:
         connection.commit()
-        print("База данных еще не создана. Приступаю\n", error)
+        print(error, "\nБаза данных еще не создана. Приступаю")
         with open("requestFiles/db_structure", "r") as db_struct:
             # create_db_commands = db_struct.read()
             # line: str = None
@@ -64,23 +59,42 @@ def init_db():
             return False
 
 
-def select_request(columns='*', tables=('guild',), limit=(), where={}):
+def update_request(table, columns_and_values, where=()):
+    sql_command = sql.SQL("UPDATE {table} SET {values} WHERE {where}").format(table=sql.Identifier(table),
+                                                                              values=(unfold_list_and_use_class(
+                                                                                  columns_and_values, ColumnsAndValue)),
+                                                                              where=(unfold_list_and_use_class(where,
+                                                                                                               Where)))
+    print(sql_command.as_string(connection))
+    cursor.execute(sql_command)
+    connection.commit()
+
+
+def delete_request(table, where):
+    sql_command = sql.SQL("DELETE FROM {table} WHERE {where}").format(table=sql.Identifier(table),
+                                                                      where=(unfold_list_and_use_class(where, Where)))
+    print(sql_command.as_string(connection))
+    cursor.execute(sql_command)
+    connection.commit()
+
+
+def select_request(columns='*', tables=('guild',), limit=(), where=()):
     if columns == "*":
         sql_command = "SELECT * FROM {tables}"
     else:
         sql_command = "SELECT {columns} FROM {tables}"
     if where:
-        if where['sign'] in ["=", '>', '<', 'LIKE']:
-            sql_command += " WHERE {where_field} " + where["sign"] + " {where_value}"
+        sql_command += " WHERE {where} "
     if limit:
         sql_command += " LIMIT {limit}"
     sql_command += ';'
-    sql_command = sql.SQL(sql_command).format(columns=sql.SQL(", ").join(sql.Identifier(column) for column in columns),
-                                              tables=sql.SQL(", ").join([sql.Identifier(table) for table in tables]),
-                                              where_field=sql.Identifier(where["where_field"]),
-                                              where_value=sql.Literal(where["where_value"]),
-                                              limit=sql.Literal(limit))
+    sql_command = sql.SQL(sql_command).format(
+        columns=unfold_list_and_use_class(columns, sql.Identifier, need_call=False),
+        tables=unfold_list_and_use_class(tables, sql.Identifier, need_call=False),
+        where=unfold_list_and_use_class(where, Where),
+        limit=sql.Literal(limit))
     cursor.execute(sql_command)
+    print(sql_command.as_string(connection))
     #    {'columns': AsIs(columns),
     # 'tables': AsIs(tables),
     # 'where': AsIs(where),
@@ -99,23 +113,29 @@ def insert_request(values, columns=(), table='guild'):
 
         # если вставляется не одно значение в таблицу
         if type(values[0]) in (list, tuple):
-            pre_value = sql.SQL("")
-            for value in values:
-                if pre_value != sql.SQL(""):
-                    pre_value += sql.SQL(", ")
-                pre_value += sql.SQL("(") + sql.SQL(", ").join(sql.Literal(value_part) for value_part in value) + sql.SQL(")")
-            print(pre_value.as_string(connection))
-            cursor.execute(sql.SQL(sql_command).format(table=sql.Identifier(table),
-                                                       columns=sql.SQL(", ").join(
-                                                           [sql.Identifier(column) for column in columns]),
-                                                       values=pre_value))
+            # pre_value = sql.SQL("")
+            # for value in values:
+            #     if pre_value != sql.SQL(""):
+            #         pre_value += sql.SQL(", ")
+            #     pre_value += sql.SQL("(") + sql.SQL(", ").join(sql.Literal(value_part) for value_part in value) + sql.SQL(")")
+            # print(pre_value.as_string(connection))
+            sql_command = sql.SQL(sql_command).format(table=sql.Identifier(table),
+                                                      columns=unfold_list_and_use_class(columns, sql.Identifier,
+                                                                                        need_call=False),
+                                                      values=unfold_list_and_use_class(values, Values))
+            cursor.execute(sql_command)
         # вставка одного значения
         else:
-            cursor.execute(sql.SQL(sql_command).format(table=sql.Identifier(table),
-                                                       columns=sql.SQL(", ").join(
-                                                           [sql.Identifier(column) for column in columns]),
-                                                       values=sql.SQL("(") + sql.SQL(", ").join(
-                                                           sql.Literal(value) for value in values) + sql.SQL(")")))
+            # sql_command = sql.SQL(sql_command).format(table=sql.Identifier(table),
+            #                                           columns=unfold_list_and_use_class(columns, sql.Identifier,
+            #                                                                             need_call=False),
+            #                                           values=unfold_list_and_use_class(values, sql.Literal,
+            #                                                                            need_call=False))
+            sql_command = sql.SQL(sql_command).format(table=sql.Identifier(table),
+                                                      columns=unfold_list_and_use_class(columns, sql.Identifier,
+                                                                                        need_call=False),
+                                                      values=unfold_list_and_use_class(values, Values))
+            cursor.execute(sql_command)
             # без обьявления колонок
         # else:
         #     sql_command = "INSERT INTO %(table)s VALUES ( %(values)s );"
@@ -127,9 +147,10 @@ def insert_request(values, columns=(), table='guild'):
         #     #     insert_method(sql_command, {'values': AsIs(", ".join(values)),
         #     #                                 "table": AsIs(table)})
         connection.commit()
+        print(sql_command.as_string(connection))
 
 
 if __name__ == "__main__":
-            open_connection()
-            init_db()
-            close_connection()
+    open_connection()
+    init_db()
+    close_connection()
