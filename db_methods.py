@@ -40,7 +40,7 @@ def init_db():
         return True
     except (Exception, psycopg2.Error) as error:
         connection.commit()
-        print("База данных еще не создана. Приступаю\n", error)
+        print(error, "\nБаза данных еще не создана. Приступаю")
         with open("requestFiles/db_structure", "r") as db_struct:
             # create_db_commands = db_struct.read()
             # line: str = None
@@ -59,21 +59,23 @@ def init_db():
             return False
 
 
-def update_request(table, columns_and_values,  where=()):
+def update_request(table, columns_and_values, where=()):
     sql_command = sql.SQL("UPDATE {table} SET {values} WHERE {where}").format(table=sql.Identifier(table),
                                                                               values=(unfold_list_and_use_class(
                                                                                   columns_and_values, ColumnsAndValue)),
-                                                                              where=(unfold_list_and_use_class(where, Where)))
+                                                                              where=(unfold_list_and_use_class(where,
+                                                                                                               Where)))
     print(sql_command.as_string(connection))
     cursor.execute(sql_command)
     connection.commit()
-    # sql_command = sql_command + sql.SQL(",").join(ColumnsAndValue(*elem) for elem in columns_and_values)
 
-    # if type(where) is list:
-    #     pass
-    # else:
-    #
-    #     sql_command = sql_command + sql.SQL(",").join(sql.Identifier(where[]))
+
+def delete_request(table, where):
+    sql_command = sql.SQL("DELETE FROM {table} WHERE {where}").format(table=sql.Identifier(table),
+                                                                      where=(unfold_list_and_use_class(where, Where)))
+    print(sql_command.as_string(connection))
+    cursor.execute(sql_command)
+    connection.commit()
 
 
 def select_request(columns='*', tables=('guild',), limit=(), where=()):

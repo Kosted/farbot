@@ -5,7 +5,7 @@ from psycopg2 import sql
 class Where:
     sign = sql.SQL('=')
 
-    def __init__(self, column, value, sign):
+    def __init__(self, column, value, sign=None):
         if sign is not None:
             if sign in ('>', '<', 'LIKE'):
                 self.sign = sql.SQL(sign)
