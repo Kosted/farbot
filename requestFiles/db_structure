@@ -19,7 +19,8 @@ CREATE TABLE public.guild (
 	guild_id text NOT NULL,
 	guild_name text,
 	bot_on_server bool DEFAULT True,
-	owner text,
+	owner_id text,
+	owner_name text,
 	CONSTRAINT guild_pk PRIMARY KEY (guild_id)
 
 );
@@ -33,6 +34,7 @@ CREATE TABLE public.member (
 	activ bool DEFAULT True,
 	join_date date,
 	days_on_server smallint,
+	member_name text,
 	CONSTRAINT member_pk PRIMARY KEY (member_id)
 
 );
@@ -90,8 +92,15 @@ CREATE TABLE public.role_white_list (
 
 -- object: owner | type: CONSTRAINT --
 -- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner CASCADE;
-ALTER TABLE public.guild ADD CONSTRAINT owner FOREIGN KEY (owner)
+ALTER TABLE public.guild ADD CONSTRAINT owner FOREIGN KEY (owner_id)
 REFERENCES public.member (member_id) MATCH FULL
+ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: owner_cp | type: CONSTRAINT --
+-- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner_cp CASCADE;
+ALTER TABLE public.guild ADD CONSTRAINT owner_cp FOREIGN KEY (owner_name)
+REFERENCES public.member (member_name) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
