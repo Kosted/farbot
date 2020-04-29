@@ -34,8 +34,9 @@ CREATE TABLE public.member (
 	activ bool DEFAULT True,
 	join_date date,
 	days_on_server smallint,
-	member_name text,
-	CONSTRAINT member_pk PRIMARY KEY (member_id)
+	member_name text NOT NULL,
+	CONSTRAINT member_pk PRIMARY KEY (member_id),
+	CONSTRAINT member_name UNIQUE (member_name)
 
 );
 -- ddl-end --
@@ -90,16 +91,16 @@ CREATE TABLE public.role_white_list (
 );
 -- ddl-end --
 
--- object: owner | type: CONSTRAINT --
--- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner CASCADE;
-ALTER TABLE public.guild ADD CONSTRAINT owner FOREIGN KEY (owner_id)
+-- object: owner_id | type: CONSTRAINT --
+-- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner_id CASCADE;
+ALTER TABLE public.guild ADD CONSTRAINT owner_id FOREIGN KEY (owner_id)
 REFERENCES public.member (member_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
--- object: owner_cp | type: CONSTRAINT --
--- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner_cp CASCADE;
-ALTER TABLE public.guild ADD CONSTRAINT owner_cp FOREIGN KEY (owner_name)
+-- object: owner_name | type: CONSTRAINT --
+-- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner_name CASCADE;
+ALTER TABLE public.guild ADD CONSTRAINT owner_name FOREIGN KEY (owner_name)
 REFERENCES public.member (member_name) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --

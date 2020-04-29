@@ -41,15 +41,55 @@ def get_bot():
     return bot
 
 
-def to_db_str(s):
-    return "'" + str(s) + "'"
+# def to_db_str(s):
+#     return "'" + str(s) + "'"
+
+async def init_guild(guild):
+    db_guild = db_methods.select_request(columns=("guild_id", "bot_on_server"),
+                                         where=("guild_id", str(guild.id)),
+                                         tables=("guild",))
+    if len(db_guild) == 1:
+        print("guild detected", db_guild)
+        db_methods.update_request("guild", (
+            ("owner_id", None), ("owner_name", None)),("guild_id", str(guild.id)))
+        db_methods.delete_request("member", ("guild_id", str(guild.id)))
+        db_methods.delete_request("guild", ("guild_id", str(guild.id)))
+        await init_guild(guild)
+
+    else:
+        # добавление гильдии без владельца
+        print("guild don't detected\nlet's create!")
+        guild_id = str(guild.id)
+        db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
+                                  values=(guild_id, guild.name, True),
+                                  table='guild')
+
+        # добавление всех членов гильдии
+        guild_members = guild.members
+        values = tuple((str(guild_id),
+                        str(member.id),
+                        member.name + '#' + member.discriminator,
+                        True,
+                        member.joined_at) for member in guild_members)
+
+        db_methods.insert_request(columns=("guild_id", "member_id", 'member_name', 'activ', 'join_date'),
+                                  values=values,
+                                  table='member')
+
+        # добавление хозяина гильдии
+        db_methods.update_request("guild", (
+            ("owner_id", guild.owner.id), ("owner_name", guild.owner.name + "#" + guild.owner.discriminator)),
+                                  ("guild_id", str(guild.id)))
 
 
 @bot.command(pass_context=True, help="отладка, не для смертных")
 async def sql(ctx, *command: str):
     if ctx.author == OWNER:
+        sql_command = ' '.join(command)
+        print(sql_command)
+
         try:
-            db_methods.cursor.execute(' '.join(command))
+            db_methods.cursor.execute(sql_command)
         except Exception:
             print("error")
         db_methods.connection.commit()
@@ -60,33 +100,9 @@ async def sql(ctx, *command: str):
 
 
 @bot.command(pass_context=True, help="отладка, не для смертных")
-async def init(ctx):
-    if ctx.author == OWNER:
-        # live_guilds = bot.guilds
-        db_guild = db_methods.select_request(columns=("guild_id", "bot_on_server"),
-                                             where={"where_field":"guild_id",
-                                                    "sign": "=",
-                                                    "where_value": to_db_str(ctx.guild.id)})
-        if len(db_guild) == 1:
-            print("guild detected",db_guild)  # guild update
-        else:
-            # ctx.
-            print("guild don't detected\nlet's create!")
-            guild_id = str(ctx.guild.id)
-            db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
-                                      values=(guild_id, ctx.guild.name, True),
-                                      table='guild')
-
-            guild_members = ctx.guild.members
-            values = tuple((str(guild_id),
-                            str(member.id),
-                            member.name,
-                            True,
-                            member.joined_at) for member in guild_members)
-
-            db_methods.insert_request(columns=("guild_id", "member_id", 'member_name','activ', 'join_date'),
-                                      values=values,
-                                      table='member')
+async def init_guild_or_if_exist_delete_and_init(ctx):
+    if ctx.author == ctx.guild.owner:
+        await init_guild(ctx.guild)
 
 
 @bot.command(pass_context=True, help="отладка, не для смертных")
@@ -512,10 +528,14 @@ async def on_reaction_remove(reaction, user):
 async def on_guild_join(guild):
     # log_channel = await  bot.fetch_channel(701183371166089276)
 
-    for channel in guild.channels:
-        # if channel.name == "флудильня":
-        if "test_farbot" in channel.name:
-            await send_and_add_reaction_for_delete(channel, 'welcome_message')
+    # for channel in guild.channels:
+    #     # if channel.name == "флудильня":
+    #     if "test_farbot" in channel.name:
+    #         await send_and_add_reaction_for_delete(channel, 'Я сейчас все настрою и буду готов\nА пока введи .help')
+    if guild.system_channel:
+        await send_and_add_reaction_for_delete(guild.system_channel,
+                                               'Я сейчас все настрою и буду готов\nА пока введи .help')
+        await init_guild(guild)
 
 
 def get_nick_or_name(author):
@@ -578,7 +598,7 @@ def fill_guild_information():
 
 @bot.check
 async def globally_debug_mod_check(ctx):
-
+    print(DEBUG, GUILD.id, ctx.guild.id, OWNER.name, ctx.author.name, ctx.channel.name, debug_channel.name)
     if DEBUG and GUILD == ctx.guild and OWNER == ctx.author and ctx.channel == debug_channel:
         print("debug mod Fargus in test_farbot channel")
         return True
