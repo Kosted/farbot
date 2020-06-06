@@ -16,12 +16,11 @@
 -- object: public.guild | type: TABLE --
 -- DROP TABLE IF EXISTS public.guild CASCADE;
 CREATE TABLE public.guild (
-	guild_id text NOT NULL,
+	guild_id bigint NOT NULL,
 	guild_name text,
 	bot_on_server bool DEFAULT True,
-	owner_id text,
-	owner_name text,
-	CONSTRAINT guild_pk PRIMARY KEY (guild_id)
+	prefix text NOT NULL DEFAULT 'f.',
+	CONSTRAINT guild_guild_id_pk PRIMARY KEY (guild_id)
 
 );
 -- ddl-end --
@@ -29,50 +28,108 @@ CREATE TABLE public.guild (
 -- object: public.member | type: TABLE --
 -- DROP TABLE IF EXISTS public.member CASCADE;
 CREATE TABLE public.member (
-	guild_id text NOT NULL,
-	member_id text NOT NULL,
+	guild_id bigint NOT NULL,
+	member_id bigint NOT NULL,
 	activ bool DEFAULT True,
 	join_date date,
 	days_on_server smallint,
 	member_name text NOT NULL,
-	CONSTRAINT member_pk PRIMARY KEY (member_id),
-	CONSTRAINT member_name UNIQUE (member_name)
+	CONSTRAINT primary_temp PRIMARY KEY (guild_id,member_id)
 
 );
 -- ddl-end --
 
--- object: public.member_black_list | type: TABLE --
--- DROP TABLE IF EXISTS public.member_black_list CASCADE;
-CREATE TABLE public.member_black_list (
-	guild_id text NOT NULL,
-	member_id text NOT NULL,
-	command_name text[] NOT NULL,
-	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
-	endlessly bool NOT NULL DEFAULT True
-);
--- ddl-end --
-
--- object: public.member_white_list | type: TABLE --
--- DROP TABLE IF EXISTS public.member_white_list CASCADE;
-CREATE TABLE public.member_white_list (
-	guild_id text NOT NULL,
-	member_id text NOT NULL,
-	command_name text[] NOT NULL,
-	date_when_access_ends date DEFAULT CURRENT_DATE,
-	endlessly bool NOT NULL DEFAULT True
-);
--- ddl-end --
-
+-- -- object: public.member_black_list | type: TABLE --
+-- -- DROP TABLE IF EXISTS public.member_black_list CASCADE;
+-- CREATE TABLE public.member_black_list (
+-- 	guild_id text NOT NULL,
+-- 	member_id text NOT NULL,
+-- 	command_name text NOT NULL,
+-- 	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
+-- 	endlessly bool NOT NULL DEFAULT True
+-- );
+-- -- ddl-end --
+--
+-- -- object: public.member_white_list | type: TABLE --
+-- -- DROP TABLE IF EXISTS public.member_white_list CASCADE;
+-- CREATE TABLE public.member_white_list (
+-- 	guild_id text NOT NULL,
+-- 	member_id text NOT NULL,
+-- 	command_name text[] NOT NULL,
+-- 	date_when_access_ends date DEFAULT CURRENT_DATE,
+-- 	endlessly bool NOT NULL DEFAULT True,
+-- 	CONSTRAINT pk PRIMARY KEY (guild_id,member_id)
+--
+-- );
+-- -- ddl-end --
+--
 -- object: public.role_black_list | type: TABLE --
 -- DROP TABLE IF EXISTS public.role_black_list CASCADE;
 CREATE TABLE public.role_black_list (
-	preset_name text NOT NULL,
-	guild_id text NOT NULL,
-	commands_name text[] NOT NULL,
-	rolls_id text[] NOT NULL,
+	guild_id bigint NOT NULL,
+	role_id bigint NOT NULL,
+	command_name text NOT NULL,
 	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
-	endlessly bool NOT NULL DEFAULT True,
-	CONSTRAINT role_black_list_pk PRIMARY KEY (preset_name)
+	endlessly bool NOT NULL DEFAULT True
+);
+-- ddl-end --
+
+-- -- object: public.settings | type: TABLE --
+-- -- DROP TABLE IF EXISTS public.settings CASCADE;
+-- CREATE TABLE public.settings (
+-- 	guild_id text NOT NULL,
+-- 	command_prefix text
+-- );
+-- -- ddl-end --
+--
+-- object: public.enable_presets | type: TABLE --
+-- DROP TABLE IF EXISTS public.enable_presets CASCADE;
+CREATE TABLE public.enable_presets (
+	guild_id bigint,
+	enable_preset text
+);
+-- ddl-end --
+
+-- object: public.owners | type: TABLE --
+-- DROP TABLE IF EXISTS public.owners CASCADE;
+CREATE TABLE public.owners (
+	guild_id bigint NOT NULL,
+	owner_id bigint NOT NULL,
+	owner_name text,
+	CONSTRAINT owners_pk PRIMARY KEY (guild_id,owner_id)
+
+);
+-- ddl-end --
+
+-- object: public.global_white_list | type: TABLE --
+-- DROP TABLE IF EXISTS public.global_white_list CASCADE;
+CREATE TABLE public.global_white_list (
+	member_id bigint NOT NULL,
+	member_name text,
+	reason text,
+	CONSTRAINT global_white_list_pk PRIMARY KEY (member_id)
+
+);
+-- ddl-end --
+
+-- object: public.global_black_list | type: TABLE --
+-- DROP TABLE IF EXISTS public.global_black_list CASCADE;
+CREATE TABLE public.global_black_list (
+	member_id bigint NOT NULL,
+	member_name text,
+	reason text,
+	CONSTRAINT global_black_list_pk PRIMARY KEY (member_id)
+
+);
+-- ddl-end --
+
+-- object: public.command_presets | type: TABLE --
+-- DROP TABLE IF EXISTS public.command_presets CASCADE;
+CREATE TABLE public.command_presets (
+	preset_name text NOT NULL,
+	commands text[],
+	priority smallint,
+	CONSTRAINT command_presets_pk PRIMARY KEY (preset_name)
 
 );
 -- ddl-end --
@@ -80,76 +137,80 @@ CREATE TABLE public.role_black_list (
 -- object: public.role_white_list | type: TABLE --
 -- DROP TABLE IF EXISTS public.role_white_list CASCADE;
 CREATE TABLE public.role_white_list (
-	preset_name text NOT NULL,
-	guild_id text NOT NULL,
-	command_name text[] NOT NULL,
-	rolls_id text[] NOT NULL,
-	date_when_ban_end date NOT NULL DEFAULT CURRENT_DATE,
-	endlessly bool NOT NULL DEFAULT True,
-	CONSTRAINT role_white_list_pk PRIMARY KEY (preset_name)
-
+	guild_id bigint NOT NULL,
+	role_id bigint NOT NULL,
+	command_name text NOT NULL,
+	date_when_access_end date NOT NULL DEFAULT CURRENT_DATE,
+	endlessly bool NOT NULL DEFAULT True
 );
 -- ddl-end --
 
--- object: owner_id | type: CONSTRAINT --
--- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner_id CASCADE;
-ALTER TABLE public.guild ADD CONSTRAINT owner_id FOREIGN KEY (owner_id)
-REFERENCES public.member (member_id) MATCH FULL
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: owner_name | type: CONSTRAINT --
--- ALTER TABLE public.guild DROP CONSTRAINT IF EXISTS owner_name CASCADE;
-ALTER TABLE public.guild ADD CONSTRAINT owner_name FOREIGN KEY (owner_name)
-REFERENCES public.member (member_name) MATCH FULL
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: guild_id | type: CONSTRAINT --
--- ALTER TABLE public.member DROP CONSTRAINT IF EXISTS guild_id CASCADE;
-ALTER TABLE public.member ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
+-- object: member_guild_id_fk | type: CONSTRAINT --
+-- ALTER TABLE public.member DROP CONSTRAINT IF EXISTS member_guild_id_fk CASCADE;
+ALTER TABLE public.member ADD CONSTRAINT member_guild_id_fk FOREIGN KEY (guild_id)
 REFERENCES public.guild (guild_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
--- object: guild_id | type: CONSTRAINT --
--- ALTER TABLE public.member_black_list DROP CONSTRAINT IF EXISTS guild_id CASCADE;
-ALTER TABLE public.member_black_list ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
+-- -- object: guild_id | type: CONSTRAINT --
+-- -- ALTER TABLE public.member_black_list DROP CONSTRAINT IF EXISTS guild_id CASCADE;
+-- ALTER TABLE public.member_black_list ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
+-- REFERENCES public.guild (guild_id) MATCH FULL
+-- ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- -- ddl-end --
+--
+-- -- object: member_id | type: CONSTRAINT --
+-- -- ALTER TABLE public.member_black_list DROP CONSTRAINT IF EXISTS member_id CASCADE;
+-- ALTER TABLE public.member_black_list ADD CONSTRAINT member_id FOREIGN KEY (member_id)
+-- REFERENCES public.member (member_id) MATCH FULL
+-- ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- -- ddl-end --
+--
+-- -- object: fk | type: CONSTRAINT --
+-- -- ALTER TABLE public.member_white_list DROP CONSTRAINT IF EXISTS fk CASCADE;
+-- ALTER TABLE public.member_white_list ADD CONSTRAINT fk FOREIGN KEY (guild_id,member_id)
+-- REFERENCES public.member (guild_id,member_id) MATCH FULL
+-- ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- -- ddl-end --
+--
+-- object: role_black_list_guild_id_fk | type: CONSTRAINT --
+-- ALTER TABLE public.role_black_list DROP CONSTRAINT IF EXISTS role_black_list_guild_id_fk CASCADE;
+ALTER TABLE public.role_black_list ADD CONSTRAINT role_black_list_guild_id_fk FOREIGN KEY (guild_id)
 REFERENCES public.guild (guild_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
--- object: member_id | type: CONSTRAINT --
--- ALTER TABLE public.member_black_list DROP CONSTRAINT IF EXISTS member_id CASCADE;
-ALTER TABLE public.member_black_list ADD CONSTRAINT member_id FOREIGN KEY (member_id)
-REFERENCES public.member (member_id) MATCH FULL
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: member_id | type: CONSTRAINT --
--- ALTER TABLE public.member_white_list DROP CONSTRAINT IF EXISTS member_id CASCADE;
-ALTER TABLE public.member_white_list ADD CONSTRAINT member_id FOREIGN KEY (member_id)
-REFERENCES public.member (member_id) MATCH FULL
-ON DELETE NO ACTION ON UPDATE NO ACTION;
--- ddl-end --
-
--- object: guild_id | type: CONSTRAINT --
--- ALTER TABLE public.member_white_list DROP CONSTRAINT IF EXISTS guild_id CASCADE;
-ALTER TABLE public.member_white_list ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
+-- -- object: guild_id | type: CONSTRAINT --
+-- -- ALTER TABLE public.settings DROP CONSTRAINT IF EXISTS guild_id CASCADE;
+-- ALTER TABLE public.settings ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
+-- REFERENCES public.guild (guild_id) MATCH FULL
+-- ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- -- ddl-end --
+--
+-- object: enable_presets_guild_id_fk | type: CONSTRAINT --
+-- ALTER TABLE public.enable_presets DROP CONSTRAINT IF EXISTS enable_presets_guild_id_fk CASCADE;
+ALTER TABLE public.enable_presets ADD CONSTRAINT enable_presets_guild_id_fk FOREIGN KEY (guild_id)
 REFERENCES public.guild (guild_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
--- object: guild_id | type: CONSTRAINT --
--- ALTER TABLE public.role_black_list DROP CONSTRAINT IF EXISTS guild_id CASCADE;
-ALTER TABLE public.role_black_list ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
-REFERENCES public.guild (guild_id) MATCH FULL
+-- object: enable_presets_preset_name_fk | type: CONSTRAINT --
+-- ALTER TABLE public.enable_presets DROP CONSTRAINT IF EXISTS enable_presets_preset_name_fk CASCADE;
+ALTER TABLE public.enable_presets ADD CONSTRAINT enable_presets_preset_name_fk FOREIGN KEY (enable_preset)
+REFERENCES public.command_presets (preset_name) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --
 
--- object: guild_id | type: CONSTRAINT --
--- ALTER TABLE public.role_white_list DROP CONSTRAINT IF EXISTS guild_id CASCADE;
-ALTER TABLE public.role_white_list ADD CONSTRAINT guild_id FOREIGN KEY (guild_id)
+-- object: owner_fk | type: CONSTRAINT --
+-- ALTER TABLE public.owners DROP CONSTRAINT IF EXISTS owner_fk CASCADE;
+ALTER TABLE public.owners ADD CONSTRAINT owner_fk FOREIGN KEY (guild_id,owner_id)
+REFERENCES public.member (guild_id,member_id) MATCH FULL
+ON DELETE NO ACTION ON UPDATE NO ACTION;
+-- ddl-end --
+
+-- object: role_white_list_guild_id_fk | type: CONSTRAINT --
+-- ALTER TABLE public.role_white_list DROP CONSTRAINT IF EXISTS role_white_list_guild_id_fk CASCADE;
+ALTER TABLE public.role_white_list ADD CONSTRAINT role_white_list_guild_id_fk FOREIGN KEY (guild_id)
 REFERENCES public.guild (guild_id) MATCH FULL
 ON DELETE NO ACTION ON UPDATE NO ACTION;
 -- ddl-end --

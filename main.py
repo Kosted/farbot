@@ -21,15 +21,20 @@ logger = logging.getLogger('discord')
 logging.basicConfig(level=logging.INFO)
 
 TOKEN = discord_token.TOKEN
-GUILD_ID = 539879904506806282
+
+# dev guild
+FARGUS_TEAM_GUILD_ID = 539879904506806282
 debug_channel = 692081802692526150
 log_channel = 701183371166089276
-GUILD = None
-OWNER = None
+FARGUS_TEAM = None
+FARGUS_TEAM_OWNER = None
 DEBUG = discord_token.DEBUG
 
+guild_prefixes_set = set()
+bot_prefixes = ['f.']
+
 global bot
-bot = commands.Bot(command_prefix='.')  # инициализируем бота с префиксом '.'
+bot = commands.Bot(command_prefix=bot_prefixes)  # инициализируем бота с префиксом '.'
 # client = discord.Client()
 
 global voice_client
@@ -41,33 +46,184 @@ def get_bot():
     return bot
 
 
-# def to_db_str(s):
-#     return "'" + str(s) + "'"
+def int_dict():
+    temp_dict_for_call_needed_constructor = dict([(1, 2)])
+    temp_dict_for_call_needed_constructor.clear()
+    return temp_dict_for_call_needed_constructor
+
+
+class Permission:
+    global_black_list = int_dict()  # list['member_id'] = {'name': str, 'reason': str'}
+    global_white_list = int_dict()
+    all_presets = {}  # {commands: set{commands}, priority: int}
+    owners = int_dict()  # owners[guild_id] = {'id': id, 'name': owner_name}
+    # prefixes = set()
+    db_guilds = int_dict()
+    '''
+    db_guilds[guild_id] = { 'name': name, 'prefix': prefix, 'enable_presets': {0} 'black_role': {1}, 'white_role': {1}, 'black_member': {2}, 'white_member': {2}
+    (0) = {'preset1', 'preset2', ...}
+    (1)['role_id'] = set{'command1', 'command2', ...}
+    '''
+
+    def __init__(self):
+        # fill global_black_list
+        db_result_dict = db_methods.select_request(table='global_black_list')
+        for row in db_result_dict:
+            self.global_black_list[row['member_id']] = {'name': row['member_name'], 'reason': row['reason']}
+
+        # fill global_white_list
+        db_result_dict = db_methods.select_request(table='global_white_list')
+        for row in db_result_dict:
+            self.global_white_list[row['member_id']] = {'name': row['member_name'], 'reason': row['reason']}
+        self.global_white_list[FARGUS_TEAM_OWNER.id] = {'name': 'Fargus', 'reason': 'bot creator'}
+
+        # fill all_presets
+        db_result_dict = db_methods.select_request(table='command_presets')
+        for row in db_result_dict:
+            self.all_presets[row['preset_name']] = {'commands': [command for command in row['commands']],
+                                                    'priority': row['priority']}
+            # self.all_presets[row['preset_name']]['priority'] = row['priority']
+        self.all_presets['dev'] = {'commands': [command.name for command in bot.commands], 'priority': 0}
+        # self.all_presets['dev']['priority'] = 0
+
+        # fill guild_permisson
+        db_result_dict = db_methods.select_request(table='guild', columns=('guild_id', 'guild_name', 'prefix'))
+
+        exist_db_guild = [row['guild_id'] for row in db_result_dict]
+        new_guild_was_added_to_db = False  # флаг для необходимости совершить новый запрос к обновившемуся списку гильдий
+        for guild in bot.guilds:
+            if guild.id not in exist_db_guild:
+                init_guild(guild)
+                new_guild_was_added_to_db = True
+            self.db_guilds[guild.id] = {'black_role': int_dict(),
+                                        'white_role': int_dict(),
+                                        'black_member': int_dict(),
+                                        'white_member': int_dict(),
+                                        'enable_presets': set()}
+
+        if new_guild_was_added_to_db:
+            db_result_dict = db_methods.select_request(table='guild', columns=('guild_id', 'guild_name', 'prefix'))
+
+        # fill guild prefix and name
+        for row in db_result_dict:
+            guild = self.db_guilds[row['guild_id']]
+            guild['prefix'] = row['prefix']
+            guild['name'] = row['guild_name']
+
+        # fill guild enable presets
+        db_result_dict = db_methods.select_request(table='enable_presets', columns=('guild_id', 'enable_preset'))
+        for row in db_result_dict:
+            self.db_guilds[row['guild_id']]['enable_presets'].add(row['enable_preset'])
+
+        # fill role_black_list
+        db_result_dict = db_methods.select_request(table='role_black_list',
+                                                   columns=('guild_id', 'role_id', 'command_name'))
+        for row in db_result_dict:
+            if row['role_id'] in self.db_guilds[row['guild_id']]['black_role']:
+                self.db_guilds[row['guild_id']]['black_role'][row['role_id']].add(row['command_name'])
+            else:
+                self.db_guilds[row['guild_id']]['black_role'][row['role_id']] = {row['command_name']}
+
+        # fill role_white_list
+        db_result_dict = db_methods.select_request(table='role_white_list',
+                                                   columns=('guild_id', 'role_id', 'command_name'))
+        for row in db_result_dict:
+            if row['role_id'] in self.db_guilds[row['guild_id']]['white_role']:
+                self.db_guilds[row['guild_id']]['white_role'][row['role_id']].add(row['command_name'])
+            else:
+                self.db_guilds[row['guild_id']]['white_role'][row['role_id']] = {row['command_name']}
+
+        # TODO: fill member black and white lists
+
+        # fill owners
+        db_result_dict = db_methods.select_request(table='owners', columns=('guild_id', 'owner_id', 'owner_name'))
+        for row in db_result_dict:
+            self.owners[row['guild_id']] = {'id': row['owner_id'], 'name': row['owner_name']}
+
+    def check_member_in_global_black_list(self, ctx):
+        if ctx.author.id in self.global_black_list.keys():
+            return True
+
+    def check_member_in_global_white_list(self, ctx):
+        if ctx.author.id in self.global_white_list.keys():
+            return True
+
+    def check_command_enable_on_this_guild(self, ctx):
+        # TODO: неоптимально каждый раз формаровать список доступных комманд
+        guild_enable_commands = set()
+        for preset in self.db_guilds[ctx.guild.id]['enable_presets']:
+            guild_enable_commands.update(self.all_presets[preset])
+
+        if ctx.command.name in guild_enable_commands:
+            return True
+        else:
+            return False
+
+    def check_member_is_owner(self, ctx):
+        if ctx.guild.owner_id == ctx.author.id and self.owners[ctx.guild.id][id] == ctx.author.id:
+            return True
+        else:
+            return False
+
+    def check_member_role_in_black_list(self, ctx):
+        for role in ctx.author.roles:
+            if role.id in self.db_guilds[ctx.guild.id]['black_role'].keys():
+                if ctx.command.name in self.db_guilds[ctx.guild.id]['black_role'][role.id]:
+                    return True
+        return False
+
+    def check_member_role_in_white_list(self, ctx):
+        for role in ctx.author.roles:
+            if role.id in self.db_guilds[ctx.guild.id]['white_role'].keys():
+                if ctx.command.name in self.db_guilds[ctx.guild.id]['white_role'][role.id]:
+                    return True
+        return False
+
+    def get_prefixes_set(self):
+        prefixes = set()
+        for guild_id in self.db_guilds:
+            prefixes.add(self.db_guilds[guild_id]['prefix'])
+        prefixes.add('f.')
+        return prefixes
+
+    def get_guild_prefix(self, guild_id):
+        return self.db_guilds[guild_id]['prefix']
+
+    def set_guild_prefix(self, guild_id, new_prefix):
+        self.db_guilds[guild_id]['prefix'] = new_prefix
+
+    def add_command_preset(self, guild_id, preset_name):
+        self.db_guilds[guild_id]['enable_presets'].add(preset_name)
+
+
+permission_obj = Permission
+
 
 async def init_guild(guild):
     db_guild = db_methods.select_request(columns=("guild_id", "bot_on_server"),
-                                         where=("guild_id", str(guild.id)),
-                                         tables=("guild",))
+                                         where=("guild_id", guild.id),
+                                         table="guild")
     if len(db_guild) == 1:
         print("guild detected", db_guild)
-        db_methods.update_request("guild", (
-            ("owner_id", None), ("owner_name", None)),("guild_id", str(guild.id)))
-        db_methods.delete_request("member", ("guild_id", str(guild.id)))
-        db_methods.delete_request("guild", ("guild_id", str(guild.id)))
+        # db_methods.update_request("guild", (
+        #     ("owner_id", None), ("owner_name", None)), ("guild_id", guild.id))
+        db_methods.delete_request("owner", ("guild_id", guild.id))
+        db_methods.delete_request("member", ("guild_id", guild.id))
+        db_methods.delete_request("guild", ("guild_id", guild.id))
         await init_guild(guild)
 
     else:
-        # добавление гильдии без владельца
+        # добавление гильдии
         print("guild don't detected\nlet's create!")
-        guild_id = str(guild.id)
-        db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
-                                  values=(guild_id, guild.name, True),
+        guild_id = guild.id
+        db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server', 'prefix'),
+                                  values=(guild_id, guild.name, True, 'f.'),
                                   table='guild')
 
         # добавление всех членов гильдии
         guild_members = guild.members
-        values = tuple((str(guild_id),
-                        str(member.id),
+        values = tuple((guild_id,
+                        member.id,
                         member.name + '#' + member.discriminator,
                         True,
                         member.joined_at) for member in guild_members)
@@ -77,26 +233,33 @@ async def init_guild(guild):
                                   table='member')
 
         # добавление хозяина гильдии
-        db_methods.update_request("guild", (
-            ("owner_id", guild.owner.id), ("owner_name", guild.owner.name + "#" + guild.owner.discriminator)),
-                                  ("guild_id", str(guild.id)))
+        db_methods.insert_request(columns=('guild_id', 'owner_id', 'owner_name'),
+                                  values=(
+                                      guild_id, guild.owner.id,
+                                      guild.owner.name + "#" + guild.owner.discriminator),
+                                  table="owners")
+        # добавление для гильдии дефолтного пресета команд
+        db_methods.insert_request(values=(guild_id, 'default'),
+                                  columns=('guild_id', 'enable_preset'),
+                                  table='enable_presets')
 
 
-@bot.command(pass_context=True, help="отладка, не для смертных")
-async def sql(ctx, *command: str):
-    if ctx.author == OWNER:
-        sql_command = ' '.join(command)
-        print(sql_command)
+class MainCommands(commands.Cog, name='My Cog'):
+    @commands.command(pass_context=True, help="отладка, не для смертных")
+    async def sql(self, ctx, *command: str):
+        if ctx.author == FARGUS_TEAM_OWNER:
+            sql_command = ' '.join(command)
+            print(sql_command)
 
-        try:
-            db_methods.cursor.execute(sql_command)
-        except Exception:
-            print("error")
-        db_methods.connection.commit()
-        if "select" in ctx.message.content.lower():
-            result = db_methods.cursor.fetchall()
-            if result is not None:
-                print(result)
+            try:
+                db_methods.cursor.execute(sql_command)
+            except Exception:
+                print("error")
+            db_methods.connection.commit()
+            if "select" in ctx.message.content.lower():
+                result = db_methods.cursor.fetchall()
+                if result is not None:
+                    print(result)
 
 
 @bot.command(pass_context=True, help="отладка, не для смертных")
@@ -105,21 +268,38 @@ async def init_guild_or_if_exist_delete_and_init(ctx):
         await init_guild(ctx.guild)
 
 
-@bot.command(pass_context=True, help="отладка, не для смертных")
-async def ti(ctx, *command: str):
-    if ctx.author == OWNER:
-        result = db_methods.select_request(tables=("guild",),
-                                           columns=("guild_id", "guild_name",),
-                                           limit=2,
-                                           where={"where_field": "bot_on_server", "sign": "=", "where_value": True})
-        # print(db_methods.insert_request())
+@bot.command(pass_content=True)
+async def t(ctx):
+    ctx.message.content = 'aaaa'
+    print(ctx.message.content)
 
-        db_methods.insert_request(columns=("guild_id", 'guild_name', 'bot_on_server'),
-                                  values=(("123", "guild name123", True),
-                                          ("456", "guild name456", True),
-                                          ("789", "guild name789", False)),
-                                  table="guild")
-        print(result)
+
+@bot.command(pass_context=True, help="<prifix> - изменить префикс перед командами")
+async def set_prefix(ctx, new_prefix: str):
+    if 0 < len(new_prefix) < 10:
+
+        if new_prefix != permission_obj.get_guild_prefix(ctx.guild.id):
+
+            db_methods.update_request("guild", ('prefix', new_prefix), ('guild_id', ctx.guild.id))
+
+            permission_obj.set_guild_prefix(ctx.guild.id, new_prefix)
+
+            global guild_prefixes_set
+
+            new_guild_prefixes_set = permission_obj.get_prefixes_set()
+
+            if guild_prefixes_set != new_guild_prefixes_set:
+                guild_prefixes_set = new_guild_prefixes_set
+                # global bot_prefixes
+                bot.command_prefix = list(guild_prefixes_set)
+
+
+def hard_prefix_check(prefix):
+    for extend_prefix in guild_prefixes_set:
+        if prefix.startswith(extend_prefix) and prefix != extend_prefix:
+            print("hard prefix")
+            return True
+    return False
 
 
 async def send_and_add_reaction_for_delete(send_point, message_text):
@@ -129,11 +309,8 @@ async def send_and_add_reaction_for_delete(send_point, message_text):
 
 @bot.command(pass_context=True, help="- показывает как давно вы на сервере")
 async def when_i_joined(ctx):
-    request_user_info = ctx.author
-    author_name = request_user_info.nick
-    if author_name is None:
-        author_name = request_user_info.name
-    temp = datetime.datetime.today() - request_user_info.joined_at
+    author_name = get_nick_or_name(ctx.author)
+    temp = datetime.datetime.today() - ctx.author.joined_at
     # print(type(ctx.guild.members))
     # if ctx.channel.name == "флудильня":
     res = "Товарищ " + author_name + ", вы присоединились к серверу " + str(temp.days) + " дней назад"
@@ -156,20 +333,15 @@ async def chance(ctx, *args):
 
 @bot.command(aliases=["farbot", "f", "s", "sys"], pass_context=True)
 async def system(ctx, *args):
-    if ctx.author.nick is not None:
-        res = ctx.author.nick
-    else:
-        res = ctx.author.name
-    if ctx.author.name == "Fargus":
+    if ctx.author.id == FARGUS_TEAM_OWNER.id:
         if len(args) != 0:
             await ctx.send(eval("".join(args)))
     else:
-        await send_and_add_reaction_for_delete(ctx, '||Пашел нахер, ' + res + "||")
+        await send_and_add_reaction_for_delete(ctx, '||Ухади||')
 
 
 @bot.command(name="roll", pass_context=True, help="<число или ничего> - выдает случайное число")
 async def roll(ctx, *args):
-    res = None
     if len(args) > 0:
         a = args[0]
 
@@ -190,7 +362,7 @@ async def roll(ctx, *args):
 @bot.command(name="old", pass_context=True, help="<число> - Топ долгожителей этого сервера")
 async def old(ctx, top: int, *args):
     all_members_with_days = list()
-    for member in GUILD.members:
+    for member in ctx.guild.members:
         all_members_with_days.append([member, datetime.datetime.today() - member.joined_at])
 
     all_members_with_days.sort(key=itemgetter(1), reverse=True)
@@ -209,19 +381,15 @@ async def choose(ctx, *args):
     await send_and_add_reaction_for_delete(ctx, "Выбираю: " + args[res])
 
 
-@bot.command(name="ping", pass_context=True)
-async def ping(ctx, member: discord.Member):
-    await ctx.send("<@!" + str(member.id) + ">")
+# @bot.command(name="ping", pass_context=True)
+# async def ping(ctx, member: discord.Member):
+#     await ctx.send("<@!" + str(member.id) + ">")
 
 
 @bot.command(aliases=["who_hase_this_role", "r", "role"], pass_context=True,
              help='<название роли или часть без опечаток> - выводит людей с ролью')
 async def members_with_role(ctx, role_name: str):
-    # if role_name[0] is '@':
-    #     role_name = role_name[1:]
-    # all_server_roles = {roles.name for roles in GUILD.roles}
-    # if role_name in all_server_roles:
-    required_role = get_role_by_name(role_name, GUILD.roles)
+    required_role = get_role_by_name(role_name, ctx.guild.roles)
 
     if required_role is not None:
         res = 'Роль "' + required_role.name + '" имеют ' + str(len(required_role.members)) + ' человек.\n'
@@ -235,29 +403,44 @@ async def members_with_role(ctx, role_name: str):
         await send_and_add_reaction_for_delete(ctx, res)
     else:
         res = 'Не могу найти похожей роли. Вот все роли, что имеются на сервере:\n'
-        res += ", ".join([roles.name for roles in GUILD.roles][1:])
+        res += ", ".join([roles.name for roles in ctx.guild.roles][1:])
         await send_and_add_reaction_for_delete(ctx, res)
 
 
 @bot.event
 async def on_ready():
     welcome_message = "я готов к использованию, если видишь меня онлайн на сервере.\nЧтобы узнать, что я могу введи .help"
-    global GUILD
-    global OWNER
+    global FARGUS_TEAM
+    FARGUS_TEAM = bot.get_guild(FARGUS_TEAM_GUILD_ID)
+    global FARGUS_TEAM_OWNER
+    FARGUS_TEAM_OWNER = FARGUS_TEAM.owner
     global log_channel
-    global debug_channel
-    db_methods.open_connection()
-    db_methods.init_db()
-    GUILD = bot.get_guild(GUILD_ID)
-    OWNER = GUILD.owner
     log_channel = await bot.fetch_channel(log_channel)
+    global debug_channel
     debug_channel = await bot.fetch_channel(debug_channel)
 
-    # for channel in GUILD.channels:
-    #     # if channel.name == "флудильня":
-    #     if "test_farbot" in channel.name:
-    #         flud_chanel = channel
-    #         break
+    db_methods.open_connection()
+    db_exist_flag = db_methods.init_db()
+
+    if not db_exist_flag:
+        db_methods.insert_request(values=('default', '{"roll", "set_preset"}', 5),
+                                  columns=('preset_name', 'commands', 'priority'), table='command_presets')
+        for guild in bot.guilds:
+            await init_guild(guild)
+    #
+    #
+    # global bot_prefixes
+
+    global permission_obj
+    permission_obj = Permission()
+    permission_obj.add_command_preset(FARGUS_TEAM_GUILD_ID, 'dev')
+
+    global guild_prefixes_set
+    guild_prefixes_set = permission_obj.get_prefixes_set()
+
+    # global bot_prefixes
+    bot.command_prefix = list(guild_prefixes_set)
+
     if not DEBUG:
         async for message in debug_channel.history(limit=1):
             if message.author.id != bot.user.id:
@@ -273,21 +456,25 @@ async def on_ready():
 
 
 @bot.command(pass_context=True)
+async def create_preset(ctx):
+    # TODO: разрешить применять этот метод только разработчику
+    all_commands = [command.name for command in bot.commands]
+    db_methods.insert_request()
+
+
+@bot.command(pass_context=True)
 async def join(ctx):
-    author = ctx.message.author
-    channel = author.voice.channel
+    channel = ctx.message.author.voice.channel
     await channel.connect()
 
 
 @bot.command(pass_context=True)
 async def leave(ctx):
+    # TODO: проверить метод на кроссерверность и сделать его таким в противном случае
     author = ctx.message.author
     voice = author.voice
 
-    if author.nick is not None:
-        author_name = author.nick
-    else:
-        author_name = author.name
+    author_name = get_nick_or_name(author)
 
     if voice is not None:
         author_voice = voice.channel
@@ -306,30 +493,26 @@ async def leave(ctx):
 
 @bot.command(aliases=["c", "clear"], pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
 async def clear_all_message(ctx, count_on_delete_message: int):
-    if ctx.author == OWNER:
-        count = 0
-        authors_of_deleted_messages = {}
-        async for message in ctx.channel.history(limit=count_on_delete_message + 1):
-            message_author_name = get_nick_or_name(message.author)
-            if message_author_name in authors_of_deleted_messages:
-                authors_of_deleted_messages[message_author_name] += 1
-            else:
-                authors_of_deleted_messages[message_author_name] = 1
-            await message.delete()
-            count += 1
+    count = 0
+    authors_of_deleted_messages = {}
+    async for message in ctx.channel.history(limit=count_on_delete_message + 1):
+        message_author_name = get_nick_or_name(message.author)
+        if message_author_name in authors_of_deleted_messages:
+            authors_of_deleted_messages[message_author_name] += 1
+        else:
+            authors_of_deleted_messages[message_author_name] = 1
+        await message.delete()
+        count += 1
 
-        # удаление упомнинания об команде удаления в отчете от бота
-        authors_of_deleted_messages[get_nick_or_name(ctx.author)] -= 1
-        if authors_of_deleted_messages[get_nick_or_name(ctx.author)] == 0:
-            authors_of_deleted_messages.pop(get_nick_or_name(ctx.author))
+    # удаление упомнинания об команде удаления в отчете от бота
+    authors_of_deleted_messages[get_nick_or_name(ctx.author)] -= 1
+    if authors_of_deleted_messages[get_nick_or_name(ctx.author)] == 0:
+        authors_of_deleted_messages.pop(get_nick_or_name(ctx.author))
 
-        res = "Я удалил " + str(count - 1) + " сообщений\n"
-        for elem in list(authors_of_deleted_messages.items()):
-            res += str(elem[1]) + ' от ' + elem[0] + '\n'
-        await ctx.send(res, delete_after=5)
-    else:
-        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ",
-                       delete_after=5)
+    res = "Я удалил " + str(count - 1) + " сообщений\n"
+    for elem in list(authors_of_deleted_messages.items()):
+        res += str(elem[1]) + ' от ' + elem[0] + '\n'
+    await ctx.send(res, delete_after=5)
 
 
 @bot.command(name="clear_my_message", pass_context=True,
@@ -337,32 +520,24 @@ async def clear_all_message(ctx, count_on_delete_message: int):
 async def clear_my_message(ctx, count_on_delete_message: int):
     request_author = ctx.author
     count_on_delete_message += 1
-    author_roles = {roles.name for roles in request_author.roles}
-    # истина если не имеют общих элементов
-    if author_roles.isdisjoint({"Вассал", "Доверенный вассал", "Монарх"}):
-        await ctx.send(ctx.author.name + ", у вас нет прав на это. Пока что... ", delete_after=5)
 
-    else:
-        count = -1
-        async for message in ctx.channel.history(limit=200 + 1):
-            if request_author == message.author:
-                await message.delete()
-                count_on_delete_message -= 1
-                count += 1
-            if count_on_delete_message == 0:
-                res = "Я удалил " + str(count) + " ваших сообщений"
-                await ctx.send(res, delete_after=5)
-                return
-        await ctx.send("Я удалил " + str(count) + " ваших сообщений", delete_after=5)
+    count = -1
+    async for message in ctx.channel.history(limit=200 + 1):
+        if request_author == message.author:
+            await message.delete()
+            count_on_delete_message -= 1
+            count += 1
+        if count_on_delete_message == 0:
+            res = "Я удалил " + str(count) + " ваших сообщений"
+            await ctx.send(res, delete_after=5)
+            return
+    await ctx.send("Я удалил " + str(count) + " ваших сообщений", delete_after=5)
+
 
 
 @bot.command(name="count", pass_context=True, help="Выводит колличество сообщений в этом чате для каждого пользователя")
 async def count_message(ctx):
-    if ctx.author != OWNER:
-        print("не фаргус")
-        await log_channel.send(get_nick_or_name(ctx.author) + ", count только для фаргуса")
-        await send_and_add_reaction_for_delete(ctx, "Ты не Fargus")
-        return
+
     all_message_in_channel_map = {}
     channel = ctx.channel
     count = 0
@@ -421,15 +596,17 @@ print(res)
 
 @bot.command(name="move", pass_context=True, help="<название воиса> - перенос в воис")
 async def move(ctx, voice_name: str):
-    if ctx.author == OWNER:
-        for channel in GUILD.channels:
-            if channel.name == voice_name:
-                await ctx.author.edit(voice_channel=channel)
-                break
+    # TODO: сделать настройки для этого метода с разрешенными воисами для ролей
+    for channel in ctx.guild.channels:
+        if channel.name == voice_name:
+            await ctx.author.edit(voice_channel=channel)
+            return
+
 
 
 @bot.command(name="say", pass_context=True, help="<текст> - произносит в воисе")
 async def say(ctx, *args):
+    # TODO: проверить метод на кросгильдность и сделать его таким в противном случае
     author = ctx.message.author
     voice = author.voice
     author_name = get_nick_or_name(author)
@@ -444,7 +621,7 @@ async def say(ctx, *args):
     text = " ".join(args)
     if text_converter.spam(text):
         await send_and_add_reaction_for_delete(ctx,
-                                               author_name + " не спамь. Если бот ошибся и это не было спамом сообщи мне, попытаюсь исправить")
+                                               author_name + " не спамь. Если бот ошибся и это не было спамом сообщите Fargus#3924")
         return
 
     # text = text[:200]
@@ -459,13 +636,13 @@ async def say(ctx, *args):
     voice_clients[0].play(discord.FFmpegPCMAudio(file_path))
 
 
-@bot.event
-async def on_typing(channel, user, when):
-    if channel.name == "флудильня" and user.name in ["Ascendant  (Эмиль)"]:
-        await channel.send(user.nick + ", хватит спамить, иди погуляй")
-    else:
-        print(user.name + " in " + channel.name)
-        await log_channel.send(get_nick_or_name(user) + " in " + channel.name)
+# @bot.event
+# async def on_typing(channel, user, when):
+#     if channel.name == "флудильня" and user.name in ["Ascendant  (Эмиль)"]:
+#         await channel.send(user.nick + ", хватит спамить, иди погуляй")
+#     else:
+#         print(user.name + " in " + channel.name)
+#         await log_channel.send(get_nick_or_name(user) + " in " + channel.name)
 
 
 @bot.event
@@ -487,6 +664,11 @@ async def stop_test(ctx):
     await member.remove_roles(role)
 
     # await
+
+
+@bot.command(name='role_ban', aliases=["arb"], pass_context=True, help="Добавить новую роль в банлист")
+async def add_role_ban(ctx, *term):
+    pass
 
 
 @bot.command(aliases=["stream", "st"], pass_context=True, help="Дает роль, для оповещений о стриме")
@@ -534,7 +716,7 @@ async def on_guild_join(guild):
     #         await send_and_add_reaction_for_delete(channel, 'Я сейчас все настрою и буду готов\nА пока введи .help')
     if guild.system_channel:
         await send_and_add_reaction_for_delete(guild.system_channel,
-                                               'Я сейчас все настрою и буду готов\nА пока введи .help')
+                                               'Я сейчас все настрою и буду готов\nА пока введи f.help')
         await init_guild(guild)
 
 
@@ -586,25 +768,128 @@ def get_role_by_name(role_name, search_start_point):
 #         return ctx.send("opa")
 
 
-# @discord.client.event(pass_context=True)
-# async def on_message(ctx):
-#     request_user_info = ctx.author
-#     if request_user_info.id == "337582745314263041":
-#         await ctx.send("op")
+@bot.event
+async def on_message(message):
+    if message.author != bot.user:
+        print("prefix", await bot.get_prefix(message), message.content)
 
-def fill_guild_information():
-    guilds = bot.guilds
+        guild_prefix = permission_obj.get_guild_prefix(message.guild.id)
+
+        if hard_prefix_check(guild_prefix):
+            if message.content.startswith(guild_prefix):
+                message.content = 'f.' + message.content[len(guild_prefix):]
+            else:
+                print("префикс гильдии неверен")
+                return
+
+        await bot.process_commands(message)
+
+
+@bot.event
+async def on_member_join(member):
+    db_methods.insert_request(columns=('guild_id', 'member_id', 'member_name', 'activ', 'join_date'),
+                              values=(member.guild.id, member.id, member.name + '#' + member.discriminator,
+                                      True,
+                                      member.joined_at),
+                              table="member")
+
+
+@bot.event
+async def on_member_remove(member):
+    member_db_info = db_methods.select_request(table='member',
+                                               where=(
+                                                   ("guild_id", member.guild.id), ('member_id', member.id)))[
+        0]
+
+    log_message = member_db_info['member_name'] + ' ушел. Присоединился он ' + str(member.joined_at.day) + '.' + str(
+        member.joined_at.month) + '.' + str(member.joined_at.year)
+
+    db_methods.delete_request(table='member', where=(("guild_id", member.guild.id), ('member_id', member.id)))
+
+    await log_channel.send(str(log_message))
+
+
+@bot.check
+async def permission(ctx):
+    if permission_obj.check_member_in_global_black_list(ctx):
+        print('global_black_list - False')
+        return False
+
+    if permission_obj.check_member_in_global_white_list(ctx):
+        print('global_white_list - True')
+        return True
+
+    if not permission_obj.check_command_enable_on_this_guild(ctx):
+        print('enable_command - False')
+        return False
+
+    if permission_obj.check_member_is_owner(ctx):
+        print('is_owner - True')
+        return True
+
+    if permission_obj.check_member_role_in_black_list(ctx):
+        print('member_role_black_list - False')
+        return False
+
+    if permission_obj.check_member_role_in_white_list(ctx):
+        print('member_role_white_list - False')
+        return True
+
+    # TODO: check member black and white list
+
+    # запретить выполнение команды, так как ниодним белым списком не разрешено
+    print('dont have permission on this command - False')
+    return False
+
+
+# TODO delete this code or update for new permission class structure
+# def check_predicat_in_list(ctx, guild_lists, list_name, role_or_member):
+#     id_dict_with_commands = guild_lists[list_name][str(ctx.guild.id)]
+#     id_dict_keys = id_dict_with_commands.keys()
+#
+#     if role_or_member == 'role':
+#         for role in ctx.author.roles:
+#             if str(role.id) in id_dict_keys:
+#                 if ctx.command.name in id_dict_with_commands[str(role.id)]:
+#                     return True
+#     elif role_or_member == 'member':
+#         if ctx.author.id in id_dict_keys:
+#                 if ctx.command.name in id_dict_with_commands[ctx.author.id]:
+#                     return True
+#     return False
+
+
+# @bot.check
+# async def prefix_control(ctx):
+#     # guild_prefix = "f."
+#     global guild_prefixes
+#     if hard_prefix_check(ctx.message):
+#         if ctx.message.content.startswith(guild_prefix):
+#             ctx.message.content = '.' + ctx.message.content[len(guild_prefix):]
+#         else:
+#             print("аборт это грех")
+#             return False
+#     return True
+
+
+async def develop():
+    async def predicate(ctx):
+        if ctx.author == FARGUS_TEAM_OWNER:
+            return True
+        else:
+            return False
 
 
 @bot.check
 async def globally_debug_mod_check(ctx):
-    print(DEBUG, GUILD.id, ctx.guild.id, OWNER.name, ctx.author.name, ctx.channel.name, debug_channel.name)
-    if DEBUG and GUILD == ctx.guild and OWNER == ctx.author and ctx.channel == debug_channel:
+    print(DEBUG, FARGUS_TEAM.id, ctx.guild.id, FARGUS_TEAM_OWNER.name, ctx.author.name, ctx.channel.name,
+          debug_channel.name)
+    if DEBUG and FARGUS_TEAM == ctx.guild and FARGUS_TEAM_OWNER == ctx.author and ctx.channel == debug_channel:
         print("debug mod Fargus in test_farbot channel")
         return True
     elif not DEBUG:
         if ctx.channel == debug_channel:
-            if ctx.author != OWNER:
+            if ctx.author != FARGUS_TEAM_OWNER:
                 print("not debug not Fargus in in test_farbot channel")
                 return True
             else:
@@ -618,4 +903,5 @@ async def globally_debug_mod_check(ctx):
         return False
 
 
+bot.add_cog(MainCommands())
 bot.run(TOKEN)

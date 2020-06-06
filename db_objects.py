@@ -38,6 +38,10 @@ class Values(Where):
         return sql.SQL("(") + sql.SQL(",").join(self.values) + sql.SQL(")")
 
 
+# class Array(Values):
+#     def get_compose(self):
+#         return sql.SQL('ARRAY[') + sql.SQL(",").join(self.values) + sql.SQL(']')
+
 
 def ident_or_literal(s):
     if type(s) == str:
@@ -46,15 +50,15 @@ def ident_or_literal(s):
         return sql.Literal(s)
 
 
-def unfold_list_and_use_class(arg, class_obj, need_call=True):
+def unfold_list_and_use_class(arg, class_obj, need_call=True, sep=','):
 
     if type(arg[0]) in (list, tuple):
         pre_join_elements = [class_obj(*elem) for elem in arg]
         if need_call:
-            return sql.SQL(",").join([elem() for elem in pre_join_elements])
+            return sql.SQL(sep).join([elem() for elem in pre_join_elements])
         else:
-            return sql.SQL(",").join(pre_join_elements)
+            return sql.SQL(sep).join(pre_join_elements)
     elif need_call:
         return class_obj(*arg)()
     else:
-        return sql.SQL(",").join([class_obj(elem) for elem in arg])
+        return sql.SQL(sep).join([class_obj(elem) for elem in arg])
