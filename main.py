@@ -150,9 +150,7 @@ class Permission:
 
     def check_command_enable_on_this_guild(self, ctx):
         # TODO: неоптимально каждый раз формаровать список доступных комманд
-        guild_enable_commands = set()
-        for preset in self.db_guilds[ctx.guild.id]['enable_presets']:
-            guild_enable_commands.update(self.all_presets[preset])
+        guild_enable_commands = self.get_enable_commands_for_guild(ctx.guild)
 
         if ctx.command.name in guild_enable_commands:
             return True
@@ -194,6 +192,12 @@ class Permission:
 
     def add_command_preset(self, guild_id, preset_name):
         self.db_guilds[guild_id]['enable_presets'].add(preset_name)
+
+    def get_enable_commands_for_guild(self, guild):
+        guild_enable_commands = set()
+        for preset in self.db_guilds[guild.id]['enable_presets']:
+            guild_enable_commands.update(self.all_presets[preset]['commands'])
+        return guild_enable_commands
 
 
 permission_obj = Permission
@@ -388,10 +392,15 @@ async def choose(ctx, *args):
 
 @bot.command(aliases=["who_hase_this_role", "r", "role"], pass_context=True,
              help='<название роли или часть без опечаток> - выводит людей с ролью')
-async def members_with_role(ctx, role_name: str):
-    required_role = get_role_by_name(role_name, ctx.guild.roles)
+async def members_with_role(ctx, *role_name: str):
+    required_role = get_role_by_name(" ".join(role_name), ctx.guild.roles)
+    if type(required_role) == list:
+        await send_and_add_reaction_for_delete(ctx.channel,
+                                               "Я нашел несколько ролей похожих на то, что вы искали: {}.\nУточните запрос.".format(
+                                                   ", ".join(role.name for role in required_role)))
+        return
 
-    if required_role is not None:
+    if required_role:
         res = 'Роль "' + required_role.name + '" имеют ' + str(len(required_role.members)) + ' человек.\n'
         if required_role.name == "@everyone":
             res += 'Или иными словами - все на этом сервере и для справки вообще каждый человек в дискорде'
@@ -456,10 +465,23 @@ async def on_ready():
 
 
 @bot.command(pass_context=True)
-async def create_preset(ctx):
+async def create_preset(ctx, preset_name=None, *commands):
     # TODO: разрешить применять этот метод только разработчику
-    all_commands = [command.name for command in bot.commands]
-    db_methods.insert_request()
+    if ctx.author.id == FARGUS_TEAM_OWNER.id:
+        all_commands = [command.name for command in bot.commands]
+        values = list()
+        if preset_name is None:
+            return
+        for args_command in commands:
+            if args_command in all_commands:
+                values.append(args_command)
+
+        if values:
+            db_methods.insert_request(table='command_presets', columns=('preset_name', 'commands'),
+                                      values=(preset_name, list_to_sql_array(values)))
+            await send_and_add_reaction_for_delete(ctx.channel,
+                                                   'Добавлен присет - **{}**.\nВ него вошли команды: {}'.format(
+                                                       preset_name, ", ".join(values)))
 
 
 @bot.command(pass_context=True)
@@ -534,10 +556,8 @@ async def clear_my_message(ctx, count_on_delete_message: int):
     await ctx.send("Я удалил " + str(count) + " ваших сообщений", delete_after=5)
 
 
-
 @bot.command(name="count", pass_context=True, help="Выводит колличество сообщений в этом чате для каждого пользователя")
 async def count_message(ctx):
-
     all_message_in_channel_map = {}
     channel = ctx.channel
     count = 0
@@ -603,7 +623,6 @@ async def move(ctx, voice_name: str):
             return
 
 
-
 @bot.command(name="say", pass_context=True, help="<текст> - произносит в воисе")
 async def say(ctx, *args):
     # TODO: проверить метод на кросгильдность и сделать его таким в противном случае
@@ -666,9 +685,108 @@ async def stop_test(ctx):
     # await
 
 
-@bot.command(name='role_ban', aliases=["arb"], pass_context=True, help="Добавить новую роль в банлист")
+@bot.command(name='role_ban', aliases=["rb"], pass_context=True, help="Добавить новую роль в банлист")
 async def add_role_ban(ctx, *term):
+    # TODO
     pass
+
+
+@bot.command(name='role_access', aliases=["ra"], pass_context=True, help="Добавить новую роль в white_list")
+async def add_role_access(ctx, *args):
+    keys = ('-all_commands', '-allc,', 'all_roles', '-allr')
+
+    all_command_flag = False
+    all_roles_flag = False
+
+    # all_roles = (role.name for role in ctx.guild.roles)
+    all_commands = permission_obj.get_enable_commands_for_guild(ctx.guild)
+
+    hold_roles = []
+    hold_commands = []
+
+    for arg in args:
+        if arg in keys:
+            if not all_command_flag and arg in keys[:2]:
+                all_command_flag = True
+                hold_commands = all_commands
+            elif not all_roles_flag and arg in keys[2:]:
+                all_roles_flag = True
+                hold_roles = (role.name for role in ctx.guild.roles)
+            elif arg not in keys:
+                await send_and_add_reaction_for_delete(ctx.channel, "Вы ввели неверный ключ {}".format(arg))
+            else:
+                await send_and_add_reaction_for_delete(ctx.channel,
+                                                       'Ключ {} повторяется, я не могу это так оставить'.format(arg))
+        # if arg is role
+        else:
+
+            role = get_role_by_name(arg, ctx.guild.roles)
+
+            if role:
+                if all_roles_flag:
+                    res = 'Вы уже использовали флаг "-all_roles" добавив все роли,' \
+                          ' добавление роли {} избыточно'.format(arg)
+
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                elif type(role) == list:
+                    res = 'Не могу понять какую роль вы имели ввиду под "{}": {}'.format(arg, ', '.join(
+                        [one_role.name for one_role in role]))
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                elif role in hold_roles:
+                    res = 'Вы уже добавили роль "{}", добавление роли {} избыточно'.format(role.name, arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                else:
+                    hold_roles.append(role)
+            # if arg is command
+            else:
+
+                if arg not in all_commands:
+                    res = 'Не могу разобрать эту команду или роль "{}"'.format(arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+
+                elif all_command_flag:
+                    res = 'Вы уже использовали флаг "-all_commands" ' \
+                          'добавив все команды, добавление команды {} избыточно'.format(arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+
+                elif arg in hold_commands:
+                    res = 'Вы уже добавили команду "{}", повторное добавление избыточно'.format(arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                else:
+                    hold_commands.append(arg)
+
+    if not hold_commands:
+        res = 'Не было распознано не одной команды'
+        await send_and_add_reaction_for_delete(ctx.channel, res)
+        return
+    elif not hold_roles:
+        res = 'Не было распознано не одной роли'
+        await send_and_add_reaction_for_delete(ctx.channel, res)
+        return
+
+        # exist_rows = db_methods.select_request(columns=('role_id', 'command_name'),
+    #                                        table='role_white_list',
+    #                                        where=('guild_id', ctx.guild.id))
+
+    guild_white_list = permission_obj.db_guilds[ctx.guild.id]['white_role']
+    for hold_role in hold_roles:
+        if hold_role.id in guild_white_list.keys():
+            new_commands = set(hold_commands).difference(guild_white_list[hold_role])
+            guild_white_list[hold_role].update(new_commands)
+        else:
+            guild_white_list[hold_role] = hold_commands
+            new_commands = hold_commands
+
+        value = [[ctx.guild.id, hold_role.id, command] for command in new_commands]
+        db_methods.insert_request(table='role_white_list',
+                                  columns=('guild_id', 'role_id', 'command_name'),
+                                  values=value)
 
 
 @bot.command(aliases=["stream", "st"], pass_context=True, help="Дает роль, для оповещений о стриме")
@@ -727,6 +845,22 @@ def get_nick_or_name(author):
         return author.name
 
 
+def list_to_sql_array(value_arr):
+    res = '{'
+
+    def to_str(elem):
+        if type(elem) is str:
+            return '"' + elem + '"'
+        else:
+            return str(elem)
+
+    value_arr = [to_str(value) for value in value_arr]
+
+    res += ", ".join(value_arr) + '}'
+
+    return res
+
+
 ''' 
 Принимает на вход название роли и место в котором хранится массив с ними
 
@@ -735,7 +869,7 @@ def get_nick_or_name(author):
 '''
 
 
-def get_role_by_name(role_name, search_start_point):
+def get_role_by_name(role_name, search_start_point, str_result=False):
     '''
     role_like_required = None
     role_name = role_name.lower()
@@ -751,15 +885,28 @@ def get_role_by_name(role_name, search_start_point):
     return role_like_required
     '''
     role_name = role_name.lower()
-    role_like_required = None
+    role_like_required = []
     for role in search_start_point:
         if role_name in role.name.lower():
             if role_name == role.name.lower():
-                return role
+                if not str_result:
+                    return role
+                else:
+                    return role.name
             else:
-                if role_like_required is None:
-                    role_like_required = role
-    return role_like_required
+                role_like_required.append(role)
+    if len(role_like_required) > 1:
+        if not str_result:
+            return role_like_required
+        else:
+            return [role.name for role in role_like_required]
+    elif len(role_like_required) == 1:
+        if str_result:
+            return role_like_required[0].name
+        else:
+            return role_like_required[0]
+    else:
+        return role_like_required
 
 
 # @bot.check
@@ -798,8 +945,7 @@ async def on_member_join(member):
 async def on_member_remove(member):
     member_db_info = db_methods.select_request(table='member',
                                                where=(
-                                                   ("guild_id", member.guild.id), ('member_id', member.id)))[
-        0]
+                                                   ("guild_id", member.guild.id), ('member_id', member.id)))[0]
 
     log_message = member_db_info['member_name'] + ' ушел. Присоединился он ' + str(member.joined_at.day) + '.' + str(
         member.joined_at.month) + '.' + str(member.joined_at.year)

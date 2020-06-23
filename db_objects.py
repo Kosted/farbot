@@ -38,9 +38,9 @@ class Values(Where):
         return sql.SQL("(") + sql.SQL(",").join(self.values) + sql.SQL(")")
 
 
-# class Array(Values):
+# class Array(Where):
 #     def get_compose(self):
-#         return sql.SQL('ARRAY[') + sql.SQL(",").join(self.values) + sql.SQL(']')
+#         return sql.SQL('') + sql.SQL(",").join(self.values) + sql.SQL(']')
 
 
 def ident_or_literal(s):

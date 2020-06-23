@@ -156,7 +156,8 @@ def insert_request(values, columns=(), table='guild'):
         connection.commit()
         print(sql_command.as_string(connection))
 
-
+# def custom_request(sql_pattern):
+#     pass
 
 
 if __name__ == "__main__":
