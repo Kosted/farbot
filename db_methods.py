@@ -64,7 +64,8 @@ def update_request(table, columns_and_values, where=()):
                                                                               values=(unfold_list_and_use_class(
                                                                                   columns_and_values, ColumnsAndValue)),
                                                                               where=(unfold_list_and_use_class(where,
-                                                                                                               Where)))
+                                                                                                               Where,
+                                                                                                               sep='AND')))
     print(sql_command.as_string(connection))
     cursor.execute(sql_command)
     connection.commit()
@@ -72,27 +73,33 @@ def update_request(table, columns_and_values, where=()):
 
 def delete_request(table, where):
     sql_command = sql.SQL("DELETE FROM {table} WHERE {where}").format(table=sql.Identifier(table),
-                                                                      where=(unfold_list_and_use_class(where, Where)))
+                                                                      where=(unfold_list_and_use_class(where, Where,
+                                                                                                       sep='AND')))
     print(sql_command.as_string(connection))
     cursor.execute(sql_command)
     connection.commit()
 
 
-def select_request(columns='*', tables=('guild',), limit=(), where=()):
+def select_request(columns='*', table='guild', limit=(), where=()):
+    format_dict = {'table': sql.Identifier(table)}
     if columns == "*":
-        sql_command = "SELECT * FROM {tables}"
+        sql_command = "SELECT * FROM {table}"
     else:
-        sql_command = "SELECT {columns} FROM {tables}"
+        sql_command = "SELECT {columns} FROM {table}"
+        format_dict["columns"] = unfold_list_and_use_class(columns, sql.Identifier, need_call=False)
+
     if where:
         sql_command += " WHERE {where} "
+        format_dict['where'] = unfold_list_and_use_class(where, Where, sep="AND")
     if limit:
         sql_command += " LIMIT {limit}"
+        format_dict['limit'] = sql.Literal(limit)
     sql_command += ';'
-    sql_command = sql.SQL(sql_command).format(
-        columns=unfold_list_and_use_class(columns, sql.Identifier, need_call=False),
-        tables=unfold_list_and_use_class(tables, sql.Identifier, need_call=False),
-        where=unfold_list_and_use_class(where, Where),
-        limit=sql.Literal(limit))
+    sql_command = sql.SQL(sql_command).format(**format_dict)
+    # if where:
+    #     sql_command = sql.SQL(sql_command).format(where=)
+    # if limit:
+    #     sql_command = sql.SQL(sql_command).format()
     cursor.execute(sql_command)
     print(sql_command.as_string(connection))
     #    {'columns': AsIs(columns),
@@ -148,6 +155,9 @@ def insert_request(values, columns=(), table='guild'):
         #     #                                 "table": AsIs(table)})
         connection.commit()
         print(sql_command.as_string(connection))
+
+# def custom_request(sql_pattern):
+#     pass
 
 
 if __name__ == "__main__":
