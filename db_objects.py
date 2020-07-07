@@ -7,7 +7,7 @@ class Where:
 
     def __init__(self, column, value, sign=None):
         if sign is not None:
-            if sign in ('>', '<', 'LIKE'):
+            if sign in ('>', '<', 'LIKE', '<>'):
                 self.sign = sql.SQL(sign)
         self.column = sql.Identifier(column)
         self.value = sql.Literal(value)

@@ -199,6 +199,12 @@ class Permission:
             guild_enable_commands.update(self.all_presets[preset]['commands'])
         return guild_enable_commands
 
+    def get_role_access_commands(self, ctx, role):
+        if role.id in self.db_guilds[ctx.guild.id]['white_role']:
+            return list(self.db_guilds[ctx.guild.id]['white_role'][role.id])
+        else:
+            return None
+
 
 permission_obj = Permission
 
@@ -307,7 +313,7 @@ def hard_prefix_check(prefix):
 
 
 async def send_and_add_reaction_for_delete(send_point, message_text):
-    sanded_message = await send_point.send(message_text)
+    sanded_message = await send_point.send('```' + message_text + '```')
     await sanded_message.add_reaction("❌")
 
 
@@ -691,7 +697,8 @@ async def add_role_ban(ctx, *term):
     pass
 
 
-@bot.command(name='role_access', aliases=["ra"], pass_context=True, help="Добавить новую роль в white_list")
+@bot.command(name='add_role_access', aliases=["ara"], pass_context=True,
+             help="Добавить новую роль в white_list, в ролях из нескольких слов пробелы заменяйте точками")
 async def add_role_access(ctx, *args):
     keys = ('-all_commands', '-allc,', 'all_roles', '-allr')
 
@@ -703,6 +710,8 @@ async def add_role_access(ctx, *args):
 
     hold_roles = []
     hold_commands = []
+
+    args = [str(arg).replace('.', ' ') for arg in args]
 
     for arg in args:
         if arg in keys:
@@ -777,16 +786,161 @@ async def add_role_access(ctx, *args):
     guild_white_list = permission_obj.db_guilds[ctx.guild.id]['white_role']
     for hold_role in hold_roles:
         if hold_role.id in guild_white_list.keys():
-            new_commands = set(hold_commands).difference(guild_white_list[hold_role])
-            guild_white_list[hold_role].update(new_commands)
+            new_commands = set(hold_commands).difference(guild_white_list[hold_role.id])
+            guild_white_list[hold_role.id].update(new_commands)
         else:
-            guild_white_list[hold_role] = hold_commands
-            new_commands = hold_commands
+            new_commands = set(hold_commands)
+            guild_white_list[hold_role.id] = new_commands
 
         value = [[ctx.guild.id, hold_role.id, command] for command in new_commands]
-        db_methods.insert_request(table='role_white_list',
-                                  columns=('guild_id', 'role_id', 'command_name'),
-                                  values=value)
+        if value:
+            db_methods.insert_request(table='role_white_list',
+                                      columns=('guild_id', 'role_id', 'command_name'),
+                                      values=value)
+
+
+@bot.command(name='remove_role_access', aliases=["rra"], pass_context=True,
+             help="Убрать роль из white_list, в ролях из нескольких слов пробелы заменяйте точками")
+async def remove_role_access(ctx, *args):
+    keys = ('-all_commands', '-allc,', 'all_roles', '-allr')
+
+    all_command_flag = False
+    all_roles_flag = False
+
+    # all_roles = (role.name for role in ctx.guild.roles)
+    all_commands = permission_obj.get_enable_commands_for_guild(ctx.guild)
+
+    hold_roles = []
+    hold_commands = []
+
+    args = [str(arg).replace('.', ' ') for arg in args]
+
+    for arg in args:
+        if arg in keys:
+            if not all_command_flag and arg in keys[:2]:
+                all_command_flag = True
+                hold_commands = all_commands
+            elif not all_roles_flag and arg in keys[2:]:
+                all_roles_flag = True
+                hold_roles = (role.name for role in ctx.guild.roles)
+            elif arg not in keys:
+                await send_and_add_reaction_for_delete(ctx.channel, "Вы ввели неверный ключ {}".format(arg))
+            else:
+                await send_and_add_reaction_for_delete(ctx.channel,
+                                                       'Ключ {} повторяется, я не могу это так оставить'.format(arg))
+        # if arg is role
+        else:
+
+            role = get_role_by_name(arg, ctx.guild.roles)
+
+            if role:
+                if all_roles_flag:
+                    res = 'Вы уже использовали флаг "-all_roles" добавив все роли,' \
+                          ' добавление роли {} избыточно'.format(arg)
+
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                elif type(role) == list:
+                    res = 'Не могу понять какую роль вы имели ввиду под "{}": {}'.format(arg, ', '.join(
+                        [one_role.name for one_role in role]))
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                elif role in hold_roles:
+                    res = 'Вы уже добавили роль "{}", добавление роли {} избыточно'.format(role.name, arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                else:
+                    hold_roles.append(role)
+            # if arg is command
+            else:
+
+                if arg not in all_commands:
+                    res = 'Не могу разобрать эту команду или роль "{}"'.format(arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+
+                elif all_command_flag:
+                    res = 'Вы уже использовали флаг "-all_commands" ' \
+                          'добавив все команды, добавление команды {} избыточно'.format(arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+
+                elif arg in hold_commands:
+                    res = 'Вы уже добавили команду "{}", повторное добавление избыточно'.format(arg)
+                    await send_and_add_reaction_for_delete(ctx.channel, res)
+                    return
+                else:
+                    hold_commands.append(arg)
+
+    if not hold_commands:
+        res = 'Не было распознано не одной команды'
+        await send_and_add_reaction_for_delete(ctx.channel, res)
+        return
+    elif not hold_roles:
+        res = 'Не было распознано не одной роли'
+        await send_and_add_reaction_for_delete(ctx.channel, res)
+        return
+
+        # exist_rows = db_methods.select_request(columns=('role_id', 'command_name'),
+    #                                        table='role_white_list',
+    #                                        where=('guild_id', ctx.guild.id))
+
+    guild_white_list = permission_obj.db_guilds[ctx.guild.id]['white_role']
+    guild_id = ctx.guild.id
+    for hold_role in hold_roles:
+        new_commands = None
+        if hold_role.id in guild_white_list.keys():
+            new_commands = guild_white_list[hold_role.id].difference(set(hold_commands))
+            guild_white_list[hold_role.id] = new_commands
+        # else:
+        #     new_commands = set(hold_commands)
+        #     guild_white_list[hold_role.id] = new_commands
+        where = list()
+        if new_commands:
+            where = [('command_name', command, '<>') for command in new_commands]
+        where.append(('guild_id', guild_id))
+        where.append(('role_id', hold_role.id))
+
+        db_methods.delete_request(table='role_white_list',
+                                  where=where)
+
+
+@bot.command(name='role_access', aliases=["ra"], pass_context=True, help="Просмотр команд разрешенных для роли")
+async def role_access(ctx, *args):
+    full_role_name = " ".join(args)
+
+    role = get_role_by_name(full_role_name, ctx.guild.roles)
+    if not role:
+        await send_and_add_reaction_for_delete(ctx, 'Не знаю такой роли: {}'.format(full_role_name))
+
+    elif type(role) is list:
+        await send_and_add_reaction_for_delete(ctx, 'Я нашел несколько ролей: {}.\nУточните название.'.format(
+            ", ".join([r.name for r in role])))
+    else:
+        role_access_commands = permission_obj.get_role_access_commands(ctx, role)
+        if role_access_commands:
+            await send_and_add_reaction_for_delete(ctx,
+                                                   'Роль "{role}" может применять эти команды: {commands}.'.format(
+                                                       role=role.name,
+                                                       commands=', '.join(role_access_commands)))
+        else:
+            await send_and_add_reaction_for_delete(ctx, 'Роль "{role}" не имеет разрешенных команд.'.format(
+                role=role.name))
+
+
+@bot.command(name='all_role_accepts', pass_context=True, help="Просмотр всех разрешенных команд на сервере")
+async def all_role_accept(ctx):
+    res = list()
+    for role in ctx.guild.roles:
+        role_access_comands = permission_obj.get_role_access_commands(ctx, role)
+        if role_access_comands:
+            res.append(
+                '"{role}" может применять: {commands}'.format(role=role.name, commands=", ".join(role_access_comands)))
+    if res:
+        await send_and_add_reaction_for_delete(ctx, '\n'.join(res))
+    else:
+        await send_and_add_reaction_for_delete(ctx,
+                                               'Неожиданно... Нет ни одной разрешенной команды.\nВремя их создать!')
 
 
 @bot.command(aliases=["stream", "st"], pass_context=True, help="Дает роль, для оповещений о стриме")
