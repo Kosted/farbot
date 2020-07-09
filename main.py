@@ -158,7 +158,7 @@ class Permission:
             return False
 
     def check_member_is_owner(self, ctx):
-        if ctx.guild.owner_id == ctx.author.id and self.owners[ctx.guild.id][id] == ctx.author.id:
+        if ctx.guild.owner_id == ctx.author.id and self.owners[ctx.guild.id]['id'] == ctx.author.id:
             return True
         else:
             return False
@@ -430,15 +430,15 @@ async def on_ready():
     global FARGUS_TEAM_OWNER
     FARGUS_TEAM_OWNER = FARGUS_TEAM.owner
     global log_channel
-    log_channel = await bot.fetch_channel(log_channel)
+    log_channel = bot.get_channel(log_channel)
     global debug_channel
-    debug_channel = await bot.fetch_channel(debug_channel)
+    debug_channel = bot.get_channel(debug_channel)
 
     db_methods.open_connection()
     db_exist_flag = db_methods.init_db()
 
     if not db_exist_flag:
-        db_methods.insert_request(values=('default', '{"roll", "set_preset"}', 5),
+        db_methods.insert_request(values=('default', '{"roll", "set_preset", role}', 5),
                                   columns=('preset_name', 'commands', 'priority'), table='command_presets')
         for guild in bot.guilds:
             await init_guild(guild)
@@ -456,16 +456,16 @@ async def on_ready():
     # global bot_prefixes
     bot.command_prefix = list(guild_prefixes_set)
 
-    if not DEBUG:
-        async for message in debug_channel.history(limit=1):
-            if message.author.id != bot.user.id:
-                await send_and_add_reaction_for_delete(debug_channel, welcome_message)
-            else:
-                if message.content != welcome_message:
-                    await send_and_add_reaction_for_delete(debug_channel, welcome_message)
-                else:
-                    await message.delete()
-                    await send_and_add_reaction_for_delete(debug_channel, welcome_message)
+    # if DEBUG:
+    #     async for message in debug_channel.history(limit=1):
+    #         if message.author.id != bot.user.id:
+    #             await send_and_add_reaction_for_delete(debug_channel, welcome_message)
+    #         else:
+    #             if message.content != welcome_message:
+    #                 await send_and_add_reaction_for_delete(debug_channel, welcome_message)
+    #             else:
+    #                 await message.delete()
+    #                 await send_and_add_reaction_for_delete(debug_channel, welcome_message)
 
     print('== Ready! ', "=" * 50)
 
@@ -673,7 +673,7 @@ async def say(ctx, *args):
 @bot.event
 async def on_raw_reaction_add(payload):
     if payload.member != bot.user:
-        channel = await bot.fetch_channel(payload.channel_id)
+        channel = bot.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
         if message.author == bot.user and payload.emoji.name == "❌":
             await message.delete()
