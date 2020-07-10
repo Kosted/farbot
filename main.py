@@ -24,8 +24,10 @@ TOKEN = discord_token.TOKEN
 
 # dev guild
 FARGUS_TEAM_GUILD_ID = 539879904506806282
-debug_channel = 692081802692526150
-log_channel = 701183371166089276
+debug_channel_id = 692081802692526150
+debug_channel = None
+log_channel_id = 701183371166089276
+log_channel = None
 FARGUS_TEAM = None
 FARGUS_TEAM_OWNER = None
 DEBUG = discord_token.DEBUG
@@ -280,8 +282,14 @@ async def init_guild_or_if_exist_delete_and_init(ctx):
 
 @bot.command(pass_content=True)
 async def t(ctx):
-    ctx.message.content = 'aaaa'
-    print(ctx.message.content)
+    embed_obj = discord.Embed(description='description')
+    embed_obj.title = 'title'
+    embed_obj.set_author(name='fargus',icon_url='https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png')
+    # embed_obj.add_field('name','value',True)
+
+    await ctx.send(embed=embed_obj)
+
+    # print(ctx.message.content)
 
 
 @bot.command(pass_context=True, help="<prifix> - изменить префикс перед командами")
@@ -345,7 +353,7 @@ async def chance(ctx, *args):
 async def system(ctx, *args):
     if ctx.author.id == FARGUS_TEAM_OWNER.id:
         if len(args) != 0:
-            await ctx.send(eval("".join(args)))
+            await ctx.send(eval(" ".join(args)))
     else:
         await send_and_add_reaction_for_delete(ctx, '||Ухади||')
 
@@ -430,9 +438,9 @@ async def on_ready():
     global FARGUS_TEAM_OWNER
     FARGUS_TEAM_OWNER = FARGUS_TEAM.owner
     global log_channel
-    log_channel = bot.get_channel(log_channel)
+    log_channel = bot.get_channel(log_channel_id)
     global debug_channel
-    debug_channel = bot.get_channel(debug_channel)
+    debug_channel = bot.get_channel(debug_channel_id)
 
     db_methods.open_connection()
     db_exist_flag = db_methods.init_db()
@@ -700,7 +708,7 @@ async def add_role_ban(ctx, *term):
 @bot.command(name='add_role_access', aliases=["ara"], pass_context=True,
              help="Добавить новую роль в white_list, в ролях из нескольких слов пробелы заменяйте точками")
 async def add_role_access(ctx, *args):
-    keys = ('-all_commands', '-allc,', 'all_roles', '-allr')
+    keys = ('-all_commands', '-allc', 'all_roles', '-allr')
 
     all_command_flag = False
     all_roles_flag = False
@@ -1182,6 +1190,8 @@ async def develop():
 
 @bot.check
 async def globally_debug_mod_check(ctx):
+    global debug_channel
+    global log_channel
     print(DEBUG, FARGUS_TEAM.id, ctx.guild.id, FARGUS_TEAM_OWNER.name, ctx.author.name, ctx.channel.name,
           debug_channel.name)
     if DEBUG and FARGUS_TEAM == ctx.guild and FARGUS_TEAM_OWNER == ctx.author and ctx.channel == debug_channel:
