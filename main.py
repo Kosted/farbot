@@ -284,7 +284,8 @@ async def init_guild_or_if_exist_delete_and_init(ctx):
 async def t(ctx):
     embed_obj = discord.Embed(description='description')
     embed_obj.title = 'title'
-    embed_obj.set_author(name='fargus',icon_url='https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png')
+    embed_obj.set_author(name='fargus',
+                         icon_url='https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png')
     # embed_obj.add_field('name','value',True)
 
     await ctx.send(embed=embed_obj)
@@ -377,7 +378,7 @@ async def roll(ctx, *args):
     await send_and_add_reaction_for_delete(ctx, str(res))
 
 
-@bot.command(name="old", pass_context=True, help="<число> - Топ долгожителей этого сервера")
+@bot.command(name="old", pass_context=True, help="<число> - Топ долгожителей этого сервера", )
 async def old(ctx, top: int, *args):
     all_members_with_days = list()
     for member in ctx.guild.members:
@@ -385,8 +386,17 @@ async def old(ctx, top: int, *args):
 
     all_members_with_days.sort(key=itemgetter(1), reverse=True)
     res = ""
+    count = 0
     for member in all_members_with_days[:top]:
-        res += member[0].name + " : " + str(member[1].days) + " дней на сервере\n"
+        # res += member[0].name + " : " + str(member[1].days) + " дней на сервере\n"
+        res += '{count}. {name} : {time} дней на сервере\n'.format(count=count,
+                                                                   name=member[0].name,
+                                                                   time=str(member[1].days))
+        count += 1
+        if len(res) > 1500:
+            print(res)
+            await send_and_add_reaction_for_delete(ctx, res)
+            res = ''
     print(res)
     await send_and_add_reaction_for_delete(ctx, res)
 
