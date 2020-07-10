@@ -2,6 +2,9 @@ import os
 from gettext import find
 from operator import itemgetter
 
+import requests
+import re
+
 import dir_helper
 import google_voice
 import text_converter
@@ -379,19 +382,25 @@ async def roll(ctx, *args):
 
 
 @bot.command(name="old", pass_context=True, help="<число> - Топ долгожителей этого сервера", )
-async def old(ctx, top: int, *args):
+async def old(ctx, top: int = 9999):
     all_members_with_days = list()
     for member in ctx.guild.members:
-        all_members_with_days.append([member, datetime.datetime.today() - member.joined_at])
+        all_members_with_days.append([get_nick_or_name(member), (datetime.datetime.today() - member.joined_at).days])
 
     all_members_with_days.sort(key=itemgetter(1), reverse=True)
-    res = ""
     count = 0
-    for member in all_members_with_days[:top]:
+    for member, time in all_members_with_days:
+        if member == get_nick_or_name(ctx.author):
+            res = '{author}, вы на {place} месте - {time} дней на сервере\n\n'.format(place=count, author=member, time=time)
+            count = 0
+            break
+        count += 1
+
+    for member, time in all_members_with_days[:top]:
         # res += member[0].name + " : " + str(member[1].days) + " дней на сервере\n"
         res += '{count}. {name} : {time} дней на сервере\n'.format(count=count,
-                                                                   name=member[0].name,
-                                                                   time=str(member[1].days))
+                                                                   name=member.name,
+                                                                   time=time)
         count += 1
         if len(res) > 1500:
             print(res)
@@ -535,6 +544,20 @@ async def leave(ctx):
             await send_and_add_reaction_for_delete(ctx, author_name + ", вы с ботом находитесь в разных чатах")
             return
         await bot.voice_clients[0].disconnect()
+
+@bot.command(name='stid', pass_context=True)
+async def steam_id64(ctx, url):
+    if re.search('https://steamcommunity\.com/id/.+', url):
+        r = requests.post('https://steamidfinder.com/lookup.php', data=url)
+
+        a = re.search('<br>SteamID64 <code>\d+</code>', r.text)
+
+        await send_and_add_reaction_for_delete(ctx, a.group(0)[20:-7])
+    else:
+        await send_and_add_reaction_for_delete(ctx, 'Не похоже на ссылку Steam профиля.')
+
+
+
 
 
 @bot.command(aliases=["c", "clear"], pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
