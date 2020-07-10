@@ -325,7 +325,8 @@ def hard_prefix_check(prefix):
 
 
 async def send_and_add_reaction_for_delete(send_point, message_text):
-    sanded_message = await send_point.send('```' + message_text + '```')
+    message_text = '```\n' + message_text + '\n```'
+    sanded_message = await send_point.send(message_text)
     await sanded_message.add_reaction("❌")
 
 
@@ -546,17 +547,29 @@ async def leave(ctx):
         await bot.voice_clients[0].disconnect()
 
 @bot.command(name='stid', pass_context=True)
-async def steam_id64(ctx, url):
-    if re.search('https://steamcommunity\.com/id/.+', url):
-        r = requests.post('https://steamidfinder.com/lookup.php', data=url)
+async def steam_id64(ctx, *urls):
+    if urls:
+        correct_url = ''
+        wrong_url = ''
+        for url in urls:
+            if re.search('https://steamcommunity\.com/(id)|(profiles)/.+', url):
+                if url.endswith('/'):
+                    url = url[:-1]
+                profile_name = url.split('/').pop()
+                if profile_name.isdigit():
+                    correct_url += profile_name + '\n'
+                else:
+                    r = requests.get('https://csgopedia.com/ru/steam-id-finder/?profiles=' + profile_name)
 
-        a = re.search('<br>SteamID64 <code>\d+</code>', r.text)
+                    a = re.search('<td>SteamID64</td> *\n* *<td><strong>\d+</strong></td>', r.text)
+                    a = re.search('\d+.\d', a.group(0))
+                    correct_url += profile_name + ' ' + a.group(0) + '\n'
+            else:
+                wrong_url += url + ' не похоже на ссылку Steam профиля.\n'
 
-        await send_and_add_reaction_for_delete(ctx, a.group(0)[20:-7])
+        await send_and_add_reaction_for_delete(ctx, correct_url + '\n' + wrong_url)
     else:
-        await send_and_add_reaction_for_delete(ctx, 'Не похоже на ссылку Steam профиля.')
-
-
+        await send_and_add_reaction_for_delete(ctx, 'После команды вставьте ссылку на стим профиль')
 
 
 
