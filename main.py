@@ -1,13 +1,8 @@
-import os
-from gettext import find
 from operator import itemgetter
-
-import requests
-import re
 
 from checks import BotChecks
 from events import BotEvents
-from helpers import make_embed, get_role_by_name, get_nick_or_name
+from helpers import get_role_by_name, get_nick_or_name, list_to_sql_array
 import dir_helper
 import google_voice
 import text_converter
@@ -20,8 +15,6 @@ from discord.ext import commands
 import logging
 import random
 import math
-
-from websockets import typing
 
 logger = logging.getLogger('discord')
 logging.basicConfig(level=logging.INFO)
@@ -44,8 +37,6 @@ bot_prefixes = ['f.']
 global bot
 bot = commands.Bot(command_prefix=bot_prefixes)  # инициализируем бота с префиксом '.'
 # client = discord.Client()
-
-import events
 
 global voice_client
 
@@ -542,30 +533,31 @@ async def leave(ctx):
         await bot.voice_clients[0].disconnect()
 
 
-@bot.command(name='stid', pass_context=True)
-async def steam_id64(ctx, *urls):
-    if urls:
-        correct_url = ''
-        wrong_url = ''
-        for url in urls:
-            if re.search('https://steamcommunity\.com/(id)|(profiles)/.+', url):
-                if url.endswith('/'):
-                    url = url[:-1]
-                profile_name = url.split('/').pop()
-                if profile_name.isdigit():
-                    correct_url += profile_name + '\n'
-                else:
-                    r = requests.get('https://csgopedia.com/ru/steam-id-finder/?profiles=' + profile_name + '/')
-
-                    a = re.search('<td>SteamID64</td> *\n* *<td><strong>\d+</strong></td>', r.text)
-                    a = re.search('\d+.\d', a.group(0))
-                    correct_url += profile_name + ' ' + a.group(0) + '\n'
-            else:
-                wrong_url += url + ' не похоже на ссылку Steam профиля.\n'
-
-        await send_and_add_reaction_for_delete(ctx, correct_url + '\n' + wrong_url)
-    else:
-        await send_and_add_reaction_for_delete(ctx, 'После команды вставьте ссылку на стим профиль')
+# todo: update steam id 64
+# @bot.command(name='stid', pass_context=True)
+# async def steam_id64(ctx, *urls):
+#     if urls:
+#         correct_url = ''
+#         wrong_url = ''
+#         for url in urls:
+#             if re.search('https://steamcommunity\.com/(id)|(profiles)/.+', url):
+#                 if url.endswith('/'):
+#                     url = url[:-1]
+#                 profile_name = url.split('/').pop()
+#                 if profile_name.isdigit():
+#                     correct_url += profile_name + '\n'
+#                 else:
+#                     r = requests.get('https://csgopedia.com/ru/steam-id-finder/?profiles=' + profile_name + '/')
+#
+#                     a = re.search('<td>SteamID64</td> *\n* *<td><strong>\d+</strong></td>', r.text)
+#                     a = re.search('\d+.\d', a.group(0))
+#                     correct_url += profile_name + ' ' + a.group(0) + '\n'
+#             else:
+#                 wrong_url += url + ' не похоже на ссылку Steam профиля.\n'
+#
+#         await send_and_add_reaction_for_delete(ctx, correct_url + '\n' + wrong_url)
+#     else:
+#         await send_and_add_reaction_for_delete(ctx, 'После команды вставьте ссылку на стим профиль')
 
 
 @bot.command(aliases=["c", "clear"], pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
@@ -1019,23 +1011,6 @@ async def on_guild_join(guild):
                                                'Я сейчас все настрою и буду готов\nА пока введи f.help')
         await init_guild(guild)
 
-
-def list_to_sql_array(value_arr):
-    res = '{'
-
-    def to_str(elem):
-        if type(elem) is str:
-            return '"' + elem + '"'
-        else:
-            return str(elem)
-
-    value_arr = [to_str(value) for value in value_arr]
-
-    res += ", ".join(value_arr) + '}'
-
-    return res
-
-
 ''' 
 Принимает на вход название роли и место в котором хранится массив с ними
 
@@ -1124,6 +1099,6 @@ async def develop():
 
 
 
-bot.add_cog(MainCommands())
+# bot.add_cog(MainCommands())
 
 bot.run(TOKEN)
