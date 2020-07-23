@@ -1,10 +1,8 @@
-import os
-from gettext import find
 from operator import itemgetter
 
-import requests
-import re
-
+from checks import BotChecks
+from events import BotEvents
+from helpers import get_role_by_name, get_nick_or_name, list_to_sql_array
 import dir_helper
 import google_voice
 import text_converter
@@ -17,8 +15,6 @@ from discord.ext import commands
 import logging
 import random
 import math
-
-from websockets import typing
 
 logger = logging.getLogger('discord')
 logging.basicConfig(level=logging.INFO)
@@ -283,17 +279,13 @@ async def init_guild_or_if_exist_delete_and_init(ctx):
         await init_guild(ctx.guild)
 
 
-@bot.command(pass_content=True)
-async def t(ctx):
-    embed_obj = discord.Embed(description='description')
-    embed_obj.title = 'title'
-    embed_obj.set_author(name='fargus',
-                         icon_url='https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png')
-    # embed_obj.add_field('name','value',True)
-
-    await ctx.send(embed=embed_obj)
-
-    # print(ctx.message.content)
+# @bot.command(pass_content=True)
+# async def t(ctx):
+#     url = 'https://i.gifer.com/RTjF.gif'
+#     embed_obj = make_embed(None, None, get_nick_or_name(ctx.author), url, 'футерэ',
+#                            url,
+#                            url, asdf='asdfasdf', jasdjf='ifjaidjflasjdflsjadf' )
+#     await ctx.send(embed=embed_obj)
 
 
 @bot.command(pass_context=True, help="<prifix> - изменить префикс перед командами")
@@ -314,14 +306,6 @@ async def set_prefix(ctx, new_prefix: str):
                 guild_prefixes_set = new_guild_prefixes_set
                 # global bot_prefixes
                 bot.command_prefix = list(guild_prefixes_set)
-
-
-def hard_prefix_check(prefix):
-    for extend_prefix in guild_prefixes_set:
-        if prefix.startswith(extend_prefix) and prefix != extend_prefix:
-            print("hard prefix")
-            return True
-    return False
 
 
 async def send_and_add_reaction_for_delete(send_point, message_text):
@@ -392,7 +376,8 @@ async def old(ctx, top: int = 9999):
     count = 0
     for member, time in all_members_with_days:
         if member == get_nick_or_name(ctx.author):
-            res = '{author}, вы на {place} месте - {time} дней на сервере\n\n'.format(place=count, author=member, time=time)
+            res = '{author}, вы на {place} месте - {time} дней на сервере\n\n'.format(place=count, author=member,
+                                                                                      time=time)
             count = 0
             break
         count += 1
@@ -400,7 +385,7 @@ async def old(ctx, top: int = 9999):
     for member, time in all_members_with_days[:top]:
         # res += member[0].name + " : " + str(member[1].days) + " дней на сервере\n"
         res += '{count}. {name} : {time} дней на сервере\n'.format(count=count,
-                                                                   name=member.name,
+                                                                   name=member,
                                                                    time=time)
         count += 1
         if len(res) > 1500:
@@ -494,7 +479,8 @@ async def on_ready():
     #             else:
     #                 await message.delete()
     #                 await send_and_add_reaction_for_delete(debug_channel, welcome_message)
-
+    bot.add_cog(BotEvents(bot, permission_obj, log_channel))
+    bot.add_cog(BotChecks(bot, permission_obj, log_channel, debug_channel, FARGUS_TEAM, FARGUS_TEAM_OWNER))
     print('== Ready! ', "=" * 50)
 
 
@@ -546,31 +532,32 @@ async def leave(ctx):
             return
         await bot.voice_clients[0].disconnect()
 
-@bot.command(name='stid', pass_context=True)
-async def steam_id64(ctx, *urls):
-    if urls:
-        correct_url = ''
-        wrong_url = ''
-        for url in urls:
-            if re.search('https://steamcommunity\.com/(id)|(profiles)/.+', url):
-                if url.endswith('/'):
-                    url = url[:-1]
-                profile_name = url.split('/').pop()
-                if profile_name.isdigit():
-                    correct_url += profile_name + '\n'
-                else:
-                    r = requests.get('https://csgopedia.com/ru/steam-id-finder/?profiles=' + profile_name)
 
-                    a = re.search('<td>SteamID64</td> *\n* *<td><strong>\d+</strong></td>', r.text)
-                    a = re.search('\d+.\d', a.group(0))
-                    correct_url += profile_name + ' ' + a.group(0) + '\n'
-            else:
-                wrong_url += url + ' не похоже на ссылку Steam профиля.\n'
-
-        await send_and_add_reaction_for_delete(ctx, correct_url + '\n' + wrong_url)
-    else:
-        await send_and_add_reaction_for_delete(ctx, 'После команды вставьте ссылку на стим профиль')
-
+# todo: update steam id 64
+# @bot.command(name='stid', pass_context=True)
+# async def steam_id64(ctx, *urls):
+#     if urls:
+#         correct_url = ''
+#         wrong_url = ''
+#         for url in urls:
+#             if re.search('https://steamcommunity\.com/(id)|(profiles)/.+', url):
+#                 if url.endswith('/'):
+#                     url = url[:-1]
+#                 profile_name = url.split('/').pop()
+#                 if profile_name.isdigit():
+#                     correct_url += profile_name + '\n'
+#                 else:
+#                     r = requests.get('https://csgopedia.com/ru/steam-id-finder/?profiles=' + profile_name + '/')
+#
+#                     a = re.search('<td>SteamID64</td> *\n* *<td><strong>\d+</strong></td>', r.text)
+#                     a = re.search('\d+.\d', a.group(0))
+#                     correct_url += profile_name + ' ' + a.group(0) + '\n'
+#             else:
+#                 wrong_url += url + ' не похоже на ссылку Steam профиля.\n'
+#
+#         await send_and_add_reaction_for_delete(ctx, correct_url + '\n' + wrong_url)
+#     else:
+#         await send_and_add_reaction_for_delete(ctx, 'После команды вставьте ссылку на стим профиль')
 
 
 @bot.command(aliases=["c", "clear"], pass_context=True, help="<число> удаляет заданное колличество новых сообщений")
@@ -597,7 +584,7 @@ async def clear_all_message(ctx, count_on_delete_message: int):
     await ctx.send(res, delete_after=5)
 
 
-@bot.command(name="clear_my_message", pass_context=True,
+@bot.command(name="clear_my_message", aliases=['cm', 'cmm'], pass_context=True,
              help="<число> удаляет заданное кол-во ваших сообщений из последних 100 сообщений")
 async def clear_my_message(ctx, count_on_delete_message: int):
     request_author = ctx.author
@@ -722,18 +709,6 @@ async def say(ctx, *args):
 #     else:
 #         print(user.name + " in " + channel.name)
 #         await log_channel.send(get_nick_or_name(user) + " in " + channel.name)
-
-
-@bot.event
-async def on_raw_reaction_add(payload):
-    if payload.member != bot.user:
-        channel = bot.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
-        if message.author == bot.user and payload.emoji.name == "❌":
-            await message.delete()
-        log_message = get_nick_or_name(payload.member) + " add: " + payload.emoji.name + ' on ' + channel.name
-        print(log_message)
-        await log_channel.send(log_message)
 
 
 @bot.command(pass_context=True, help="Отбирает роль тестировщика и доступ в чат")
@@ -1024,15 +999,6 @@ async def stream_notify(ctx, *term):
 
 
 @bot.event
-async def on_reaction_remove(reaction, user):
-    # if reaction.name == "test_farbot":
-    #
-    #     await channel.send(user.name)
-    # else:
-    print("remove")
-
-
-@bot.event
 async def on_guild_join(guild):
     # log_channel = await  bot.fetch_channel(701183371166089276)
 
@@ -1045,30 +1011,6 @@ async def on_guild_join(guild):
                                                'Я сейчас все настрою и буду готов\nА пока введи f.help')
         await init_guild(guild)
 
-
-def get_nick_or_name(author):
-    if author.nick is not None:
-        return author.nick
-    else:
-        return author.name
-
-
-def list_to_sql_array(value_arr):
-    res = '{'
-
-    def to_str(elem):
-        if type(elem) is str:
-            return '"' + elem + '"'
-        else:
-            return str(elem)
-
-    value_arr = [to_str(value) for value in value_arr]
-
-    res += ", ".join(value_arr) + '}'
-
-    return res
-
-
 ''' 
 Принимает на вход название роли и место в котором хранится массив с ними
 
@@ -1077,90 +1019,10 @@ def list_to_sql_array(value_arr):
 '''
 
 
-def get_role_by_name(role_name, search_start_point, str_result=False):
-    '''
-    role_like_required = None
-    role_name = role_name.lower()
-
-    role_names_list = [role.name.lower() for role in search_start_point]
-    for server_role in role_names_list:
-        if role_name in server_role:
-            if role_name == server_role:
-                return role
-            else:
-                if role_like_required is None:
-                    role_like_required = role
-    return role_like_required
-    '''
-    role_name = role_name.lower()
-    role_like_required = []
-    for role in search_start_point:
-        if role_name in role.name.lower():
-            if role_name == role.name.lower():
-                if not str_result:
-                    return role
-                else:
-                    return role.name
-            else:
-                role_like_required.append(role)
-    if len(role_like_required) > 1:
-        if not str_result:
-            return role_like_required
-        else:
-            return [role.name for role in role_like_required]
-    elif len(role_like_required) == 1:
-        if str_result:
-            return role_like_required[0].name
-        else:
-            return role_like_required[0]
-    else:
-        return role_like_required
-
-
 # @bot.check
 # async def globally_block_dms(ctx):
 #     if ctx.channel.name == "test_farbot":
 #         return ctx.send("opa")
-
-
-@bot.event
-async def on_message(message):
-    if message.author != bot.user:
-        print("prefix", await bot.get_prefix(message), message.content)
-
-        guild_prefix = permission_obj.get_guild_prefix(message.guild.id)
-
-        if hard_prefix_check(guild_prefix):
-            if message.content.startswith(guild_prefix):
-                message.content = 'f.' + message.content[len(guild_prefix):]
-            else:
-                print("префикс гильдии неверен")
-                return
-
-        await bot.process_commands(message)
-
-
-@bot.event
-async def on_member_join(member):
-    db_methods.insert_request(columns=('guild_id', 'member_id', 'member_name', 'activ', 'join_date'),
-                              values=(member.guild.id, member.id, member.name + '#' + member.discriminator,
-                                      True,
-                                      member.joined_at),
-                              table="member")
-
-
-@bot.event
-async def on_member_remove(member):
-    member_db_info = db_methods.select_request(table='member',
-                                               where=(
-                                                   ("guild_id", member.guild.id), ('member_id', member.id)))[0]
-
-    log_message = member_db_info['member_name'] + ' ушел. Присоединился он ' + str(member.joined_at.day) + '.' + str(
-        member.joined_at.month) + '.' + str(member.joined_at.year)
-
-    db_methods.delete_request(table='member', where=(("guild_id", member.guild.id), ('member_id', member.id)))
-
-    await log_channel.send(str(log_message))
 
 
 @bot.check
@@ -1234,30 +1096,9 @@ async def develop():
             return False
 
 
-@bot.check
-async def globally_debug_mod_check(ctx):
-    global debug_channel
-    global log_channel
-    print(DEBUG, FARGUS_TEAM.id, ctx.guild.id, FARGUS_TEAM_OWNER.name, ctx.author.name, ctx.channel.name,
-          debug_channel.name)
-    if DEBUG and FARGUS_TEAM == ctx.guild and FARGUS_TEAM_OWNER == ctx.author and ctx.channel == debug_channel:
-        print("debug mod Fargus in test_farbot channel")
-        return True
-    elif not DEBUG:
-        if ctx.channel == debug_channel:
-            if ctx.author != FARGUS_TEAM_OWNER:
-                print("not debug not Fargus in in test_farbot channel")
-                return True
-            else:
-                print("not debug Fargus in test_farbot channel")
-                return False
-        else:
-            print("not debug anybody not in test_farbot channel")
-            return True
-    else:
-        print("debug anybody or not in test_farbot channel")
-        return False
 
 
-bot.add_cog(MainCommands())
+
+# bot.add_cog(MainCommands())
+
 bot.run(TOKEN)
