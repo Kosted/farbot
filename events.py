@@ -30,21 +30,22 @@ class BotEvents(commands.Cog):
         # else:
         print("remove")
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author != self.bot.user:
-            print("prefix", await self.bot.get_prefix(message), message.content)
-
-            guild_prefix = self.permission_obj.get_guild_prefix(message.guild.id)
-
-            if hard_prefix_check(guild_prefix, self.guild_prefixes_set):
-                if message.content.startswith(guild_prefix):
-                    message.content = 'f.' + message.content[len(guild_prefix):]
-                else:
-                    print("префикс гильдии неверен")
-                    return
-
-            await self.bot.process_commands(message)
+    # @commands.Cog.listener()
+    # async def on_message(self, message):
+    #     if message.author != self.bot.user:
+    #         print("prefix", await self.bot.get_prefix(message), message.content)
+    #
+    #         guild_prefix = self.permission_obj.get_guild_prefix(message.guild.id)
+    #
+    #         if hard_prefix_check(guild_prefix, self.guild_prefixes_set):
+    #             if message.content.startswith(guild_prefix):
+    #                 message.content = 'f.' + message.content[len(guild_prefix):]
+    #             else:
+    #                 print("префикс гильдии неверен")
+    #                 return
+    #
+    #         await self.bot.process_commands(message)
+    #     return
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
