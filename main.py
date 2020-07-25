@@ -2,7 +2,7 @@ from operator import itemgetter
 
 from checks import BotChecks
 from events import BotEvents
-from helpers import get_role_by_name, get_nick_or_name, list_to_sql_array
+from helpers import get_role_by_name, get_nick_or_name, list_to_sql_array, hard_prefix_check
 import dir_helper
 import google_voice
 import text_converter
@@ -480,7 +480,7 @@ async def on_ready():
     #                 await message.delete()
     #                 await send_and_add_reaction_for_delete(debug_channel, welcome_message)
     bot.add_cog(BotEvents(bot, permission_obj, log_channel))
-    bot.add_cog(BotChecks(bot, permission_obj, log_channel, debug_channel, FARGUS_TEAM, FARGUS_TEAM_OWNER))
+    # bot.add_cog(BotChecks(bot, permission_obj, log_channel, debug_channel, FARGUS_TEAM, FARGUS_TEAM_OWNER))
     print('== Ready! ', "=" * 50)
 
 
@@ -1096,9 +1096,47 @@ async def develop():
             return False
 
 
+    @bot.event()
+    async def on_message(self, message):
+        if message.author != self.bot.user:
+            print("prefix", await self.bot.get_prefix(message), message.content)
 
+            guild_prefix = self.permission_obj.get_guild_prefix(message.guild.id)
 
+            if hard_prefix_check(guild_prefix, self.guild_prefixes_set):
+                if message.content.startswith(guild_prefix):
+                    message.content = 'f.' + message.content[len(guild_prefix):]
+                else:
+                    print("префикс гильдии неверен")
+                    return
 
-# bot.add_cog(MainCommands())
+            await self.bot.process_commands(message)
+        return
+
+    @bot.check
+    async def globally_debug_mod_check(self, ctx):
+        # global debug_channel
+        # global log_channel
+        print(DEBUG, self.FARGUS_TEAM.id, ctx.guild.id, self.FARGUS_TEAM_OWNER.name, ctx.author.name, ctx.channel.name,
+              self.debug_channel.name)
+        if DEBUG and self.FARGUS_TEAM == ctx.guild and self.FARGUS_TEAM_OWNER == ctx.author and ctx.channel == self.debug_channel:
+            print("debug mod Fargus in test_farbot channel")
+            return True
+        elif not DEBUG:
+            if ctx.channel == self.debug_channel:
+                if ctx.author != self.FARGUS_TEAM_OWNER:
+                    print("not debug not Fargus in in test_farbot channel")
+                    return True
+                else:
+                    print("not debug Fargus in test_farbot channel")
+                    return False
+            else:
+                print("not debug anybody not in test_farbot channel")
+                return True
+        else:
+            print("debug anybody or not in test_farbot channel")
+            return False
+
+bot.add_cog(MainCommands())
 
 bot.run(TOKEN)
