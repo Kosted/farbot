@@ -642,7 +642,7 @@ print(res)
 
     split_result = []
     # one_part_len = int(len(sorted_all_message)/arg)
-    one_part_len = 10
+    one_part_len = 30
     print("one part len = " + str(one_part_len))
 
     parts = len(sorted_all_message) / one_part_len
@@ -1096,46 +1096,50 @@ async def develop():
             return False
 
 
-    @bot.event()
-    async def on_message(self, message):
-        if message.author != self.bot.user:
-            print("prefix", await self.bot.get_prefix(message), message.content)
-
-            guild_prefix = self.permission_obj.get_guild_prefix(message.guild.id)
-
-            if hard_prefix_check(guild_prefix, self.guild_prefixes_set):
-                if message.content.startswith(guild_prefix):
-                    message.content = 'f.' + message.content[len(guild_prefix):]
-                else:
-                    print("префикс гильдии неверен")
-                    return
-
-            await self.bot.process_commands(message)
+@bot.event
+async def on_message(message):
+    if message.author.id == 348349309051338753 and message.content.lower() in ['я пиллаб', 'я пилаб']:
+        message.channel.send('Логично')
         return
 
-    @bot.check
-    async def globally_debug_mod_check(self, ctx):
-        # global debug_channel
-        # global log_channel
-        print(DEBUG, self.FARGUS_TEAM.id, ctx.guild.id, self.FARGUS_TEAM_OWNER.name, ctx.author.name, ctx.channel.name,
-              self.debug_channel.name)
-        if DEBUG and self.FARGUS_TEAM == ctx.guild and self.FARGUS_TEAM_OWNER == ctx.author and ctx.channel == self.debug_channel:
-            print("debug mod Fargus in test_farbot channel")
-            return True
-        elif not DEBUG:
-            if ctx.channel == self.debug_channel:
-                if ctx.author != self.FARGUS_TEAM_OWNER:
-                    print("not debug not Fargus in in test_farbot channel")
-                    return True
-                else:
-                    print("not debug Fargus in test_farbot channel")
-                    return False
+    if message.author != bot.user:
+        print("prefix", await bot.get_prefix(message), message.content)
+
+        guild_prefix = permission_obj.get_guild_prefix(message.guild.id)
+
+        if hard_prefix_check(guild_prefix, guild_prefixes_set):
+            if message.content.startswith(guild_prefix):
+                message.content = 'f.' + message.content[len(guild_prefix):]
             else:
-                print("not debug anybody not in test_farbot channel")
+                print("префикс гильдии неверен")
+                return
+
+        await bot.process_commands(message)
+    return
+
+@bot.check
+async def globally_debug_mod_check( ctx):
+    # global debug_channel
+    # global log_channel
+    print(DEBUG, FARGUS_TEAM.id, ctx.guild.id, FARGUS_TEAM_OWNER.name, ctx.author.name, ctx.channel.name,
+          debug_channel.name)
+    if DEBUG and FARGUS_TEAM == ctx.guild and FARGUS_TEAM_OWNER == ctx.author and ctx.channel == debug_channel:
+        print("debug mod Fargus in test_farbot channel")
+        return True
+    elif not DEBUG:
+        if ctx.channel == debug_channel:
+            if ctx.author != FARGUS_TEAM_OWNER:
+                print("not debug not Fargus in in test_farbot channel")
                 return True
+            else:
+                print("not debug Fargus in test_farbot channel")
+                return False
         else:
-            print("debug anybody or not in test_farbot channel")
-            return False
+            print("not debug anybody not in test_farbot channel")
+            return True
+    else:
+        print("debug anybody or not in test_farbot channel")
+        return False
 
 bot.add_cog(MainCommands())
 

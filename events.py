@@ -76,6 +76,10 @@ class BotEvents(commands.Cog):
             message = await channel.fetch_message(payload.message_id)
             if message.author == self.bot.user and payload.emoji.name == "❌":
                 await message.delete()
+                log_message = get_nick_or_name(payload.member) + " add: " + payload.emoji.name + ' on ' + channel.name
+                print(log_message)
+                await self.log_channel.send(log_message)
+
             #     TODO: добавить настройку включения выключения логирования эмодзи
             # log_message = get_nick_or_name(payload.member) + " add: " + payload.emoji.name + ' on ' + channel.name
             # print(log_message)
