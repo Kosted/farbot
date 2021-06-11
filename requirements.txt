@@ -31,5 +31,5 @@ soupsieve==2.0
 sql==0.4.0
 typing-extensions==3.7.4.1
 urllib3==1.25.8
-websockets==8.1
+websockets==9.1
 yarl==1.4.2
